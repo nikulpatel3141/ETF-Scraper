@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=63.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "etf_scraper"
+dynamic = ["version"]
+description = "Scrape ETF and Mutual Fund holdings"
+readme = "README.rst"
+requires-python = ">=3.8"
+classifiers = [
+    "Programming Language :: Python :: 3",
+]
+dependencies = [
+    "requests",
+    "tenacity",
+    "numpy",
+    "pandas>=1.5",
+    "fastparquet",
+    "pandas_datareader",
+    "pandas_market_calendars",
+    "sqlalchemy==1.4.45",
+    "openpyxl",
+    "Jinja2",
+    "matplotlib",
+]
+
