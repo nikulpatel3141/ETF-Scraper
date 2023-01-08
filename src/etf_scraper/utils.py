@@ -21,3 +21,8 @@ def check_missing_cols(
                 f"Missing required columns from response. Got {returned_cols}"
                 f"Was expecting at least all of {exp_cols}"
             )
+
+
+def safe_urljoin(host, endpoint):
+    """Same as urljoin but leading/trailing '/' makes no difference"""
+    return f"{host.rstrip('/')}/{endpoint.lstrip('/')}"

@@ -1,4 +1,5 @@
 import logging
+from typing import Union
 from urllib.parse import urljoin
 from io import StringIO
 from datetime import date, datetime
@@ -7,7 +8,7 @@ import requests
 import pandas as pd
 import numpy as np
 
-from etf_scraper.utils import check_missing_cols
+from etf_scraper.utils import check_missing_cols, safe_urljoin
 from etf_scraper.base import ProviderListings, SecurityListing
 
 logger = logging.getLogger(__name__)
@@ -74,7 +75,7 @@ class ISharesListings(ProviderListings):
             resp_df.reindex(cls.response_mapping).rename(index=cls.response_mapping).T
         )
 
-        build_url = lambda x: f"{cls.host}/{x.lstrip('/')}"
+        build_url = lambda x: safe_urljoin(cls.host, x)
         resp_df_.loc[:, "product_url"] = resp_df_["product_url"].apply(build_url)
 
         def parse_date(x):
@@ -97,18 +98,25 @@ class ISharesListings(ProviderListings):
         resp_df_.loc[:, "net_assets"] = resp_df_["net_assets"].apply(parse_net)
         resp_df_.loc[:, "fund_type"] = resp_df_["fund_type"].apply(parse_fund_type)
         resp_df_.loc[:, "provider"] = cls.provider
-
         return resp_df_.reset_index(drop=True)
 
     @classmethod
-    def retrieve_holdings_(cls, ticker: str, product_url: str, holdings_date: date):
-        endpoint = f'{product_url.rstrip("/")}/{cls.ajax_endpoint}'
+    def retrieve_holdings_(
+        cls, ticker: str, product_url: str, holdings_date: Union[date, None]
+    ):
+        """Query for IShares product holdings
+        Args:
+        - holdings_date: date for holdings to query. If not given, then will
+        query for the latest available holdings.
+        """
+        endpoint = safe_urljoin(product_url, cls.ajax_endpoint)
         req_params = {
             "fileType": "csv",
             "fileName": f"{ticker}_holdings",
             "dataType": "fund",
-            "asOfDate": holdings_date.strftime("%Y%m%d"),
         }
+        if holdings_date:
+            req_params = {"asOfDate": holdings_date.strftime("%Y%m%d"), **req_params}
 
         logger.info(
             f"Querying {cls.provider} for {ticker} holdings as of {holdings_date}"
@@ -131,14 +139,14 @@ class ISharesListings(ProviderListings):
                 f"Was expecting an 'as of date' indicator, instead found: {date_info}"
             )
 
-        logger.info(
-            f"Found reported holdings date string {date_info}, attempting to parse"
-        )
+        logger.info(f"Found reported holdings date string {date_info}")
+        logger.info("Attempting to parse holdings data")
+
         date_info = datetime.strptime(
             date_info.pop(), "%b %d, %Y"
         ).date()  # eg "Jan 03, 2022"
 
-        if date_info != holdings_date:
+        if holdings_date and date_info != holdings_date:
             raise ValueError(
                 f"Queried for date {holdings_date} but received holdings for {date_info} instead"
             )
@@ -170,7 +178,9 @@ class ISharesListings(ProviderListings):
 
 class SSGAListings(ProviderListings):
     provider = "SSGA"
+    host = "https://www.ssga.com"
     ssga_products = {"mf": "MF", "etfs": "ETF"}  # ignore 'cash' and 'strategies'
+
     ssga_web_url = "https://www.ssga.com/bin/v1/ssmp/fund/fundfinder?country=us&language=en&role=intermediary&product=@all&ui=fund-finder"
 
     ssga_web_resp_renaming = {
@@ -185,7 +195,6 @@ class SSGAListings(ProviderListings):
     exp_web_cols = ["fundTicker", "fundUri"]
 
     ssga_doc_url = "https://www.ssga.com/us/en/intermediary/ic/library-content/products/fund-data/etfs/us/spdr-product-data-us-en.xlsx"
-
     ssga_doc_mapping = {
         "Ticker": "ticker",
         "Name": "fund_name",
@@ -257,6 +266,9 @@ class SSGAListings(ProviderListings):
         ssga_web_data_df_.loc[:, "net_assets"] = ssga_web_data_df_["net_assets"].apply(
             parse_aum
         )
+        ssga_web_data_df_.loc[:, "product_url"] = ssga_web_data_df_[
+            "product_url"
+        ].apply(lambda x: safe_urljoin(cls.host, x))
         return ssga_web_data_df_
 
     @classmethod
@@ -271,3 +283,13 @@ class SSGAListings(ProviderListings):
         ssga_listings = ssga_web_data_df.merge(ssga_doc_df_, how="left", on="ticker")
         ssga_listings.loc[:, "provider"] = cls.provider
         return ssga_listings
+
+    @classmethod
+    def retrieve_holdings(
+        cls, sec_listing: SecurityListing, holdings_date: Union[date, None]
+    ) -> pd.DataFrame:
+
+        if holdings_date:
+            raise NotImplementedError(
+                f"Can only query latest holdings (holdings_date=None) from SSGA"
+            )
