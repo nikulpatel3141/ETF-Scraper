@@ -206,6 +206,22 @@ class SSGAListings(ProviderListings):
     }
     exp_doc_cols = ["Ticker", "Asset Class"]
 
+    etf_holdings_url = (
+        "https://www.ssga.com/us/en/intermediary/etfs/library-content/products/fund-data/"
+        "etfs/us/holdings-daily-us-en-{}.xlsx"
+    )
+
+    etf_holdings_col_map = {
+        "Name": "name",
+        "Ticker": "ticker",
+        "Identifier": "cusip",
+        "SEDOL": "sedol",
+        "Weight": "weight",
+        "Sector": "Sector",
+        "Shares Held": "amount",
+        "Local Currency": "local_currency",
+    }
+
     @classmethod
     def query_ssga_fund_doc(cls) -> pd.DataFrame:
         """Query the document SSGA provides for ETF listings information such as
@@ -285,6 +301,56 @@ class SSGAListings(ProviderListings):
         return ssga_listings
 
     @classmethod
+    def parse_holdings_resp(cls, resp_df: pd.DataFrame):
+        """Parse SSGA ETF holdings Excel
+        These contain a preamble (with as of date, ticker etc) and the main
+        holdings.
+
+        Returns: a df of the holdings, and a date object representing the reported
+        as of date and ticker
+        """
+        header_row = resp_df[resp_df.iloc[:, 0] == "Name"].index[0]
+        preamble = resp_df.iloc[:header_row, :2].set_index(resp_df.columns[0]).squeeze()
+        preamble.index = [str(x).rstrip(":").strip() for x in preamble.index]
+        print(preamble)
+        ticker = preamble["Ticker Symbol"]
+
+        as_of_val = preamble["Holdings"]
+        print(header_row)
+        as_of_val = as_of_val.lower().split("as of")[-1].strip()
+        as_of_date = datetime.strptime(as_of_val, "%d-%b-%Y").date()
+
+        # return resp_df
+        holdings_df = resp_df.iloc[header_row + 1 :]
+        holdings_df.columns = resp_df.iloc[header_row].values
+        return holdings_df[~holdings_df["Ticker"].isna()], as_of_date, ticker
+
+    @classmethod
+    def retrieve_holdings_(cls, ticker: str) -> pd.DataFrame:
+        holdings_url = cls.etf_holdings_url.format(ticker.lower())
+        resp = requests.get(holdings_url)
+        resp.raise_for_status()
+
+        df = pd.read_excel(resp.content)
+        # return cls.parse_holdings_resp(df)
+        holdings_df, resp_holdings_date, resp_ticker = cls.parse_holdings_resp(df)
+
+        logger.info(f"Found response as of date {resp_holdings_date} for {ticker}")
+
+        if ticker.upper() != resp_ticker.upper():
+            raise ValueError(
+                f"Response ticker {resp_ticker} doesn't match the query ticker {ticker}"
+            )
+
+        check_missing_cols(["Ticker", "Shares Held"], holdings_df.columns)
+        holdings_df = holdings_df.reindex(
+            columns=list(cls.etf_holdings_col_map)
+        ).rename(columns=cls.etf_holdings_col_map)
+        holdings_df.loc[:, "fund_ticker"] = ticker
+        holdings_df.loc[:, "as_of_date"] = resp_holdings_date
+        return holdings_df
+
+    @classmethod
     def retrieve_holdings(
         cls, sec_listing: SecurityListing, holdings_date: Union[date, None]
     ) -> pd.DataFrame:
@@ -293,3 +359,10 @@ class SSGAListings(ProviderListings):
             raise NotImplementedError(
                 f"Can only query latest holdings (holdings_date=None) from SSGA"
             )
+
+        if sec_listing.fund_type != "ETF":
+            raise NotImplementedError(
+                f"Can only retrieve SSGA ETF holdings, not {sec_listing.fund_type}"
+            )
+
+        return cls.retrieve_holdings_(sec_listing.ticker)

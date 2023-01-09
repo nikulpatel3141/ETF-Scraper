@@ -29,6 +29,10 @@ class FundHolding:
     fund_ticker: str
     as_of_date: date
     ticker: str
+    isin: str
+    sedol: str
+    cusip: str
+    name: str
     amount: float
     market_value: float
     notional_value: float  # != market_value eg for futures
