@@ -101,6 +101,48 @@ class ISharesListings(ProviderListings):
         return resp_df_.reset_index(drop=True)
 
     @classmethod
+    def _parse_holdings_resp(cls, resp_content):
+        raw_data = StringIO(resp_content)
+        summary_data = [raw_data.readline().rstrip("\n") for _ in range(9)]
+
+        date_info = {
+            k.split(",", 1)[-1].strip("'\"")
+            for k in summary_data
+            if "Fund Holdings as of".lower() in k.lower()
+        }
+        if date_info == "-":
+            raise ValueError(f"Found '-' as holdings date, no data received")
+        elif len(date_info) != 1:
+            raise ValueError(
+                f"Was expecting an 'as of date' indicator, instead found: {date_info}"
+            )
+
+        logger.info(f"Found reported holdings date string {date_info}")
+        logger.info("Attempting to parse holdings data")
+
+        date_info = datetime.strptime(
+            date_info.pop(), "%b %d, %Y"
+        ).date()  # eg "Jan 03, 2022"
+
+        if summary_data[-1] != "\xa0":
+            logger.warning(
+                f"Was expecting \xa0 as the last line in the summary block."
+                f" Found {summary_data[-1]} instead."
+            )
+
+        data_df = pd.read_csv(
+            raw_data, thousands=",", na_values="-"
+        )  # shouldn't need to skip any rows now
+        print(data_df.columns)
+
+        check_missing_cols(cls.exp_holding_cols, data_df.columns, raise_error=True)
+
+        data_df = data_df.rename(columns=cls.holding_col_mapping)
+        data_df = data_df[~data_df["weight"].isna()]
+
+        return data_df, date_info
+
+    @classmethod
     def retrieve_holdings_(
         cls, ticker: str, product_url: str, holdings_date: Union[date, None]
     ):
@@ -124,47 +166,15 @@ class ISharesListings(ProviderListings):
         resp = requests.get(endpoint, params=req_params)
         resp.raise_for_status()
 
-        raw_data = StringIO(resp.content.decode(encoding="UTF-8-SIG"))
-        summary_data = [raw_data.readline().rstrip("\n") for _ in range(9)]
-
-        date_info = {
-            k.split(",", 1)[-1].strip("'\"")
-            for k in summary_data
-            if "Fund Holdings as of".lower() in k.lower()
-        }
-        if date_info == "-":
-            raise ValueError(f"Found '-' as holdings date, no data received")
-        elif len(date_info) != 1:
-            raise ValueError(
-                f"Was expecting an 'as of date' indicator, instead found: {date_info}"
-            )
-
-        logger.info(f"Found reported holdings date string {date_info}")
-        logger.info("Attempting to parse holdings data")
-
-        date_info = datetime.strptime(
-            date_info.pop(), "%b %d, %Y"
-        ).date()  # eg "Jan 03, 2022"
+        data_df, date_info = cls._parse_holdings_resp(
+            resp.content.decode(encoding="UTF-8-SIG")
+        )
 
         if holdings_date and date_info != holdings_date:
             raise ValueError(
                 f"Queried for date {holdings_date} but received holdings for {date_info} instead"
             )
 
-        if summary_data[-1] != "\xa0":
-            logger.warning(
-                f"Was expecting \xa0 as the last line in the summary block."
-                f" Found {summary_data[-1]} instead."
-            )
-
-        data_df = pd.read_csv(
-            raw_data, thousands=",", na_values="-"
-        )  # shouldn't need to skip any rows now
-
-        check_missing_cols(cls.exp_holding_cols, data_df.columns, raise_error=True)
-        data_df = data_df.rename(columns=cls.holding_col_mapping)
-
-        data_df = data_df[~data_df["weight"].isna()]
         data_df.loc[:, "fund_ticker"] = ticker
         data_df.loc[:, "as_of_date"] = holdings_date
         return data_df
@@ -223,7 +233,7 @@ class SSGAListings(ProviderListings):
     }
 
     @classmethod
-    def query_ssga_fund_doc(cls) -> pd.DataFrame:
+    def _query_ssga_fund_doc(cls) -> pd.DataFrame:
         """Query the document SSGA provides for ETF listings information such as
         asset class, exchange, isin. Not strictly necessary to query holdings information
         but useful if we want to filter on, eg Equity funds only.
@@ -244,7 +254,7 @@ class SSGAListings(ProviderListings):
         return ssga_doc_df_
 
     @classmethod
-    def query_ssga_webpage(cls) -> pd.DataFrame:
+    def _query_ssga_webpage(cls) -> pd.DataFrame:
         resp = requests.get(cls.ssga_web_url)
         resp.raise_for_status()
 
@@ -290,8 +300,8 @@ class SSGAListings(ProviderListings):
     @classmethod
     def retrieve_listings(cls):
         """Retrievs SSGA listings for ETFS and Mutual Funds"""
-        ssga_doc_df = cls.query_ssga_fund_doc()
-        ssga_web_data_df = cls.query_ssga_webpage()
+        ssga_doc_df = cls._query_ssga_fund_doc()
+        ssga_web_data_df = cls._query_ssga_webpage()
 
         ssga_doc_df_ = ssga_doc_df[
             ["ticker", "asset_class", "cusip", "isin", "benchmark"]
@@ -301,7 +311,7 @@ class SSGAListings(ProviderListings):
         return ssga_listings
 
     @classmethod
-    def parse_holdings_resp(cls, resp_df: pd.DataFrame):
+    def _parse_holdings_resp(cls, resp_content):
         """Parse SSGA ETF holdings Excel
         These contain a preamble (with as of date, ticker etc) and the main
         holdings.
@@ -309,21 +319,31 @@ class SSGAListings(ProviderListings):
         Returns: a df of the holdings, and a date object representing the reported
         as of date and ticker
         """
+        resp_df = pd.read_excel(resp_content)
         header_row = resp_df[resp_df.iloc[:, 0] == "Name"].index[0]
         preamble = resp_df.iloc[:header_row, :2].set_index(resp_df.columns[0]).squeeze()
         preamble.index = [str(x).rstrip(":").strip() for x in preamble.index]
-        print(preamble)
         ticker = preamble["Ticker Symbol"]
 
         as_of_val = preamble["Holdings"]
-        print(header_row)
         as_of_val = as_of_val.lower().split("as of")[-1].strip()
         as_of_date = datetime.strptime(as_of_val, "%d-%b-%Y").date()
 
         # return resp_df
         holdings_df = resp_df.iloc[header_row + 1 :]
         holdings_df.columns = resp_df.iloc[header_row].values
-        return holdings_df[~holdings_df["Ticker"].isna()], as_of_date, ticker
+        holdings_df = holdings_df[~holdings_df["Ticker"].isna()]
+
+        check_missing_cols(["Ticker", "Shares Held"], holdings_df.columns)
+
+        holdings_df = holdings_df.reindex(
+            columns=list(cls.etf_holdings_col_map)
+        ).rename(columns=cls.etf_holdings_col_map)
+
+        for col in ["weight", "amount"]:
+            holdings_df.loc[:, col] = pd.to_numeric(holdings_df[col])
+
+        return holdings_df, as_of_date, ticker
 
     @classmethod
     def retrieve_holdings_(cls, ticker: str) -> pd.DataFrame:
@@ -331,9 +351,9 @@ class SSGAListings(ProviderListings):
         resp = requests.get(holdings_url)
         resp.raise_for_status()
 
-        df = pd.read_excel(resp.content)
-        # return cls.parse_holdings_resp(df)
-        holdings_df, resp_holdings_date, resp_ticker = cls.parse_holdings_resp(df)
+        holdings_df, resp_holdings_date, resp_ticker = cls._parse_holdings_resp(
+            resp.content
+        )
 
         logger.info(f"Found response as of date {resp_holdings_date} for {ticker}")
 
@@ -342,10 +362,6 @@ class SSGAListings(ProviderListings):
                 f"Response ticker {resp_ticker} doesn't match the query ticker {ticker}"
             )
 
-        check_missing_cols(["Ticker", "Shares Held"], holdings_df.columns)
-        holdings_df = holdings_df.reindex(
-            columns=list(cls.etf_holdings_col_map)
-        ).rename(columns=cls.etf_holdings_col_map)
         holdings_df.loc[:, "fund_ticker"] = ticker
         holdings_df.loc[:, "as_of_date"] = resp_holdings_date
         return holdings_df
