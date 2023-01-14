@@ -8,7 +8,13 @@ import requests
 import pandas as pd
 import numpy as np
 
-from etf_scraper.utils import check_missing_cols, check_data_mismatch, safe_urljoin
+from etf_scraper.utils import (
+    check_missing_cols,
+    check_data_mismatch,
+    safe_urljoin,
+    set_numeric_cols,
+    strip_str_cols,
+)
 from etf_scraper.base import ProviderListings, SecurityListing
 
 logger = logging.getLogger(__name__)
@@ -114,23 +120,23 @@ class ISharesListings(ProviderListings):
         raw_data = StringIO(resp_content)
         summary_data = [raw_data.readline().rstrip("\n") for _ in range(9)]
 
-        date_info = {
+        as_of_date = {
             k.split(",", 1)[-1].strip("'\"")
             for k in summary_data
             if "Fund Holdings as of".lower() in k.lower()
         }
-        if date_info == "-":
+        if as_of_date == "-":
             raise ValueError(f"Found '-' as holdings date, no data received")
-        elif len(date_info) != 1:
+        elif len(as_of_date) != 1:
             raise ValueError(
-                f"Was expecting an 'as of date' indicator, instead found: {date_info}"
+                f"Was expecting an 'as of date' indicator, instead found: {as_of_date}"
             )
 
-        logger.info(f"Found reported holdings date string {date_info}")
+        logger.info(f"Found reported holdings date string {as_of_date}")
         logger.info("Attempting to parse holdings data")
 
-        date_info = datetime.strptime(
-            date_info.pop(), "%b %d, %Y"
+        as_of_date = datetime.strptime(
+            as_of_date.pop(), "%b %d, %Y"
         ).date()  # eg "Jan 03, 2022"
 
         if summary_data[-1] != "\xa0":
@@ -139,17 +145,21 @@ class ISharesListings(ProviderListings):
                 f" Found {summary_data[-1]} instead."
             )
 
-        data_df = pd.read_csv(
+        holdings_df = pd.read_csv(
             raw_data, thousands=",", na_values="-"
         )  # shouldn't need to skip any rows now
-        print(data_df.columns)
 
-        check_missing_cols(cls.exp_holding_cols, data_df.columns, raise_error=True)
+        check_missing_cols(cls.exp_holding_cols, holdings_df.columns, raise_error=True)
 
-        data_df = data_df.rename(columns=cls.holding_col_mapping)
-        data_df = data_df[~data_df["weight"].isna()]
+        holdings_df = holdings_df.rename(columns=cls.holding_col_mapping)
+        holdings_df = holdings_df[~holdings_df["weight"].isna()]
 
-        return data_df, date_info
+        strip_str_cols(holdings_df, ["ticker"])
+        set_numeric_cols(
+            holdings_df, ["amount", "weight", "market_value", "price", "notional_value"]
+        )
+
+        return holdings_df, as_of_date
 
     @classmethod
     def retrieve_holdings_(
@@ -175,18 +185,18 @@ class ISharesListings(ProviderListings):
         resp = requests.get(endpoint, params=req_params)
         resp.raise_for_status()
 
-        data_df, date_info = cls._parse_holdings_resp(
+        holdings_df, as_of_date = cls._parse_holdings_resp(
             resp.content.decode(encoding="UTF-8-SIG")
         )
 
-        if holdings_date and date_info != holdings_date:
-            raise ValueError(
-                f"Queried for date {holdings_date} but received holdings for {date_info} instead"
+        if holdings_date:
+            check_data_mismatch(
+                holdings_date, as_of_date, "holdings date", raise_error=True
             )
 
-        data_df.loc[:, "fund_ticker"] = ticker
-        data_df.loc[:, "as_of_date"] = holdings_date
-        return data_df
+        holdings_df.loc[:, "fund_ticker"] = ticker
+        holdings_df.loc[:, "as_of_date"] = holdings_date
+        return holdings_df
 
     @classmethod
     def retrieve_holdings(cls, sec_listing: SecurityListing, holdings_date: date):
@@ -350,8 +360,8 @@ class SSGAListings(ProviderListings):
             columns=list(cls.etf_holdings_col_map)
         ).rename(columns=cls.etf_holdings_col_map)
 
-        for col in ["weight", "amount"]:
-            holdings_df.loc[:, col] = pd.to_numeric(holdings_df[col])
+        strip_str_cols(holdings_df, ["ticker"])
+        set_numeric_cols(holdings_df, ["weight", "amount"])
 
         return holdings_df, as_of_date, ticker
 
@@ -511,8 +521,8 @@ class VanguardListings(ProviderListings):
         ).rename(columns=cls.holding_col_mapping)
         holdings_df.loc[:, "as_of_date"] = pd.to_datetime(holdings_df["as_of_date"])
 
-        for col in ["weight", "amount", "market_value"]:  # FIXME: repetition
-            holdings_df.loc[:, col] = pd.to_numeric(holdings_df[col])
+        strip_str_cols(holdings_df, ["ticker"])
+        set_numeric_cols(holdings_df, ["amount", "market_value", "weight"])
 
         return holdings_df, ret_item_id
 
@@ -564,7 +574,142 @@ class VanguardListings(ProviderListings):
     def retrieve_holdings(
         cls, sec_listing: SecurityListing, holdings_date: date
     ) -> pd.DataFrame:
+        """Retrieve Vanguard ETF/MF holdings. Will only return data for month end
+        holdings dates.
+        """
         _check_exp_provider(sec_listing.provider, cls.provider, cls.__name__)
         return cls.retrieve_holdings_(
             sec_listing.ticker, sec_listing.product_id, holdings_date
         )
+
+
+class InvescoListings(ProviderListings):
+    """TODO: Currently only works for ETF data (ie we are missing Invesco MFs)"""
+
+    provider = "Invesco"
+
+    date_fmt = "%m/%d/%Y"
+    listings_url = (
+        "https://www.invesco.com/us/financial-products/etfs/performance/prices/main/"
+        "performance/0?audienceType=Advisor&action=download"
+    )
+    listings_resp_mapping = {
+        "Name": "fund_name",
+        "Ticker": "ticker",
+        "Inception_Date": "inception_date",
+        "Index_Ticker": "benchmark",
+        "CUSIP": "cusip",
+        "ISIN": "isin",
+        "Exchange": "exchange",
+    }
+
+    item_url = (
+        "https://www.invesco.com/us/financial-products/etfs/"
+        "product-detail?audienceType=Investor&ticker={}"
+    )
+
+    holdings_url = (
+        "https://www.invesco.com/us/financial-products/etfs/holdings/main/holdings/"
+        "0?audienceType=Investor&action=download&ticker={}"
+    )
+    holdings_resp_mapping = {
+        "Fund Ticker": "fund_ticker",
+        "Security Identifier": "cusip",
+        "Holding Ticker": "ticker",
+        "Shares/Par Value": "amount",
+        "MarketValue": "market_value",
+        "Weight": "weight",
+        "Name": "name",
+        "Class of Shares": "security_type",  # FIXME: is this accurate???
+        "Sector": "sector",
+        "Date": "as_of_date",
+    }
+
+    @classmethod
+    def _parse_date(cls, date_str: str) -> date:
+        return datetime.strptime(date_str, cls.date_fmt).date()
+
+    @classmethod
+    def retrieve_listings(cls) -> pd.DataFrame:
+        """Retrieve all ETF listings from Invesco"""
+        resp = requests.get(cls.listings_url)
+        resp.raise_for_status()
+
+        resp_buffer = StringIO(resp.content.decode())
+        listings_df = pd.read_csv(resp_buffer, skiprows=5)
+
+        check_missing_cols(["Ticker"], listings_df, raise_error=True)
+        check_missing_cols(list(cls.listings_resp_mapping), listings_df)
+
+        listings_df_ = listings_df.reindex(
+            columns=list(cls.listings_resp_mapping)
+        ).rename(columns=cls.listings_resp_mapping)
+        listings_df_.loc[:, "inception_date"] = listings_df_["inception_date"].apply(
+            cls._parse_date
+        )
+        listings_df_.loc[:, "item_url"] = listings_df_["ticker"].apply(
+            lambda x: cls.item_url.format(x)
+        )
+        listings_df_.loc[:, "fund_type"] = "ETF"
+        listings_df_.loc[:, "provider"] = cls.provider
+
+        return listings_df_
+
+    @classmethod
+    def _parse_holdings_resp(cls, holdings_resp):
+        """Parse the CSVs Invesco provide for holdings data"""
+        holdings_df = pd.read_csv(StringIO(holdings_resp.decode()), thousands=",")
+        check_missing_cols(
+            ["Holding Ticker", "Shares/Par Value"],
+            holdings_df.columns,
+            raise_error=True,
+        )
+        check_missing_cols(cls.holdings_resp_mapping, holdings_df.columns)
+
+        holdings_df_ = holdings_df.reindex(
+            columns=list(cls.holdings_resp_mapping)
+        ).rename(columns=cls.holdings_resp_mapping)
+
+        holdings_df_.loc[:, "as_of_date"] = holdings_df_["as_of_date"].apply(
+            cls._parse_date
+        )
+        strip_str_cols(holdings_df_, ["ticker", "fund_ticker"])
+        set_numeric_cols(holdings_df_, ["amount", "market_value", "weight"])
+        return holdings_df_
+
+    @classmethod
+    def retrieve_holdings_(cls, ticker: str):
+        """Retrieve the latest holdings for the given ETF ticker"""
+        url = cls.holdings_url.format(ticker.upper())
+        resp = requests.get(url)
+        resp.raise_for_status()
+
+        holdings_df = cls._parse_holdings_resp(resp.content)
+
+        holdings_date = holdings_df["as_of_date"].drop_duplicates()
+        if len(holdings_date) > 1:
+            raise ValueError(
+                f"Found multiple holdings dates, was expecting one: {list(holdings_date)}"
+            )
+
+        fund_ticker = holdings_df["fund_ticker"].drop_duplicates()
+        if len(fund_ticker) > 1:
+            raise ValueError(
+                f"Found multiple fund tickers, was expecting one ({ticker}): {list(fund_ticker)}"
+            )
+
+        check_data_mismatch(ticker, fund_ticker[0], "fund ticker")
+
+        return holdings_df
+
+    @classmethod
+    def retrieve_holdings(
+        cls, sec_listing: SecurityListing, holdings_date: Union[None, date] = None
+    ) -> pd.DataFrame:
+        """Retrieve Invesco ETF holdings data"""
+        _check_exp_provider(sec_listing.provider, cls.provider, cls.__name__)
+
+        if holdings_date:
+            raise ValueError(f"Can only retrieve the latest holdings from Invesco")
+
+        return cls.retrieve_holdings_(sec_listing.ticker)

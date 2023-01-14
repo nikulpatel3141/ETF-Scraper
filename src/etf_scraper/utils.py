@@ -1,6 +1,8 @@
 import logging
 from typing import Sequence
 
+import pandas as pd
+
 logger = logging.getLogger(__name__)
 
 
@@ -40,3 +42,17 @@ def check_data_mismatch(
 def safe_urljoin(host, endpoint):
     """Same as urljoin but leading/trailing '/' makes no difference"""
     return f"{host.rstrip('/')}/{endpoint.lstrip('/')}"
+
+
+def set_numeric_cols(df: pd.DataFrame, cols: Sequence):
+    """Apply pd.to_numeric in-place to the given dataframe for cols"""
+
+    for col in cols:
+        df.loc[:, col] = pd.to_numeric(df[col])
+
+
+def strip_str_cols(df: pd.DataFrame, cols: Sequence):
+    """Apply str.strip in place to the given columns"""
+
+    for col in cols:
+        df.loc[:, col] = df[col].str.strip()

@@ -12,7 +12,12 @@ from pathlib import Path
 import pytest
 import numpy as np
 
-from etf_scraper.scrapers import ISharesListings, SSGAListings, VanguardListings
+from etf_scraper.scrapers import (
+    ISharesListings,
+    InvescoListings,
+    SSGAListings,
+    VanguardListings,
+)
 
 DATA_DIR = Path(__file__).parent.joinpath("test_data")
 
@@ -39,9 +44,15 @@ def vanguard_test_resp():
     return json.loads(resp_file)
 
 
+@pytest.fixture
+def invesco_test_resp():
+    return _read_file("Invesco_QQQ_holdings_20230113.csv", "rb")
+
+
 def check_holdings_df(
     holdings_df,
     exp_tot_holdings,
+    exp_tot_mkt_val,
     exp_first_ticker,
     exp_last_ticker,
     exp_weight,
@@ -56,15 +67,21 @@ def check_holdings_df(
     act_tot_holdings = holdings_df["amount"].sum()
     assert act_tot_holdings == exp_tot_holdings  # integer so need exact match
 
-    act_first_ticker = holdings_df["ticker"].iloc[0]
-    assert act_first_ticker == exp_first_ticker
+    if exp_first_ticker:
+        act_first_ticker = holdings_df["ticker"].iloc[0]
+        assert act_first_ticker == exp_first_ticker
 
-    act_last_ticker = holdings_df["ticker"].iloc[-1]
-    assert act_last_ticker == exp_last_ticker
+    if exp_last_ticker:
+        act_last_ticker = holdings_df["ticker"].iloc[-1]
+        assert act_last_ticker == exp_last_ticker
 
-    assert np.isclose(
-        holdings_df["weight"].sum(), exp_weight
-    )  # float can be slightly off
+    # float values so need np.isclose
+    if exp_tot_mkt_val is not None:
+        print(holdings_df["market_value"].sum(), exp_tot_mkt_val)
+        assert np.isclose(holdings_df["market_value"].sum(), exp_tot_mkt_val)
+
+    if exp_weight:
+        assert np.isclose(holdings_df["weight"].sum(), exp_weight)
 
 
 def test_ishares_etf_holdings_resp_parser(ishares_test_resp):
@@ -73,6 +90,7 @@ def test_ishares_etf_holdings_resp_parser(ishares_test_resp):
 
     # calculated directly from the file
     exp_tot_holdings = 3690353839
+    exp_tot_mkt_val = 289404832047
     exp_weight = 100.02
     exp_first_ticker = "AAPL"
     exp_last_ticker = "ETD_USD"
@@ -85,7 +103,12 @@ def test_ishares_etf_holdings_resp_parser(ishares_test_resp):
     assert act_holdings_date == exp_holdings_date
 
     check_holdings_df(
-        holdings_df, exp_tot_holdings, exp_first_ticker, exp_last_ticker, exp_weight
+        holdings_df,
+        exp_tot_holdings,
+        exp_tot_mkt_val,
+        exp_first_ticker,
+        exp_last_ticker,
+        exp_weight,
     )
 
 
@@ -96,6 +119,7 @@ def test_ssga_etf_holdings_resp_parser(ssga_test_resp):
 
     # calculated directly from the file
     exp_tot_holdings = 3731709239
+    exp_tot_mkt_val = None  # not provided in the file
     exp_weight = 99.999959
     exp_first_ticker = "AAPL"
     exp_last_ticker = "NWS"
@@ -108,7 +132,12 @@ def test_ssga_etf_holdings_resp_parser(ssga_test_resp):
     assert act_holdings_date == exp_holdings_date
 
     check_holdings_df(
-        holdings_df, exp_tot_holdings, exp_first_ticker, exp_last_ticker, exp_weight
+        holdings_df,
+        exp_tot_holdings,
+        exp_tot_mkt_val,
+        exp_first_ticker,
+        exp_last_ticker,
+        exp_weight,
     )
 
 
@@ -125,16 +154,50 @@ def test_vanguard_etf_holdings_resp_parser(vanguard_test_resp):
 
     # calculated directly from the file
     exp_tot_holdings = 7281027674
+    exp_tot_mkt_val = 784925323154.07
 
     holdings_df, ret_item_id = VanguardListings._parse_holdings_resp(vanguard_test_resp)
 
     assert ret_item_id == exp_item_id
 
     holdings_date = holdings_df["as_of_date"].drop_duplicates()
-    assert len(holdings_date) == 1
-    assert holdings_date[0].date() == exp_holdings_date
+    assert list(holdings_date) == [exp_holdings_date]
 
     holdings_df_ = holdings_df[
         (~holdings_df["ticker"].isna()) & (holdings_df["security_type"] == "Equity")
     ]  # remove S&P500 futures + short term reserves
-    assert holdings_df_["amount"].sum() == exp_tot_holdings
+
+    check_holdings_df(
+        holdings_df_,
+        exp_tot_holdings,
+        exp_tot_mkt_val,
+        None,
+        None,
+        None,
+    )
+
+
+def test_invesco_etf_holdings_resp_parser(invesco_test_resp):
+    exp_ticker = "QQQ"
+    exp_holdings_date = date(year=2023, month=1, day=13)
+
+    # calculated directly from the file
+    exp_tot_holdings = 1362477212
+    exp_weight = 100.004
+    exp_tot_mkt_val = 149376907881
+
+    holdings_df = InvescoListings._parse_holdings_resp(invesco_test_resp)
+
+    holdings_date = holdings_df["as_of_date"].drop_duplicates()
+    assert list(holdings_date) == [exp_holdings_date]
+
+    assert list(holdings_df["fund_ticker"].unique()) == [exp_ticker]
+
+    check_holdings_df(
+        holdings_df,
+        exp_tot_holdings,
+        exp_tot_mkt_val,
+        exp_first_ticker="MSFT",
+        exp_last_ticker="LCID",
+        exp_weight=exp_weight,
+    )
