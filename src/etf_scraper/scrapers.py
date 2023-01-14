@@ -14,6 +14,13 @@ from etf_scraper.base import ProviderListings, SecurityListing
 logger = logging.getLogger(__name__)
 
 
+def _check_exp_provider(given, exp, class_name):
+    if given != exp:
+        raise ValueError(
+            f"Provider should be {exp}, not {given} for class {class_name}"
+        )
+
+
 class ISharesListings(ProviderListings):
     provider = "IShares"
     host = "https://www.ishares.com"
@@ -183,6 +190,7 @@ class ISharesListings(ProviderListings):
 
     @classmethod
     def retrieve_holdings(cls, sec_listing: SecurityListing, holdings_date: date):
+        _check_exp_provider(sec_listing.provider, cls.provider, cls.__name__)
         return cls.retrieve_holdings_(
             sec_listing.ticker, sec_listing.product_url, holdings_date
         )
@@ -372,6 +380,7 @@ class SSGAListings(ProviderListings):
     def retrieve_holdings(
         cls, sec_listing: SecurityListing, holdings_date: Union[date, None]
     ) -> pd.DataFrame:
+        _check_exp_provider(sec_listing.provider, cls.provider, cls.__name__)
 
         if holdings_date:
             raise NotImplementedError(
@@ -513,7 +522,11 @@ class VanguardListings(ProviderListings):
     ) -> pd.DataFrame:
         """
         Args:
+        - fund_ticker: ETF/MF ticker. This is only for appending to the returned dataframe
+        for consistency. It doesn't validate this corresponds to the given product_id.
         - product_id: the internal ID Vanguard uses for their products, eg 0968 -> VOO
+
+        Note: ticker may be missing, eg for short-term reserve positions
         """
         url = cls.holdings_endpoint(product_id)
 
@@ -546,3 +559,12 @@ class VanguardListings(ProviderListings):
         holdings_df.loc[:, "fund_ticker"] = fund_ticker
 
         return holdings_df
+
+    @classmethod
+    def retrieve_holdings(
+        cls, sec_listing: SecurityListing, holdings_date: date
+    ) -> pd.DataFrame:
+        _check_exp_provider(sec_listing.provider, cls.provider, cls.__name__)
+        return cls.retrieve_holdings_(
+            sec_listing.ticker, sec_listing.product_id, holdings_date
+        )

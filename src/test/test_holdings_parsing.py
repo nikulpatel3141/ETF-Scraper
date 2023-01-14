@@ -114,7 +114,10 @@ def test_ssga_etf_holdings_resp_parser(ssga_test_resp):
 
 def test_vanguard_etf_holdings_resp_parser(vanguard_test_resp):
     """Attempt to cross check response with a direct holdings file download.
-    Can't compare weights exactly due to rounding errors in the file
+
+    There are differences in the API response vs the direct file:
+    - Due to rounding errors in the file we can't compare weights exactly
+    - The api returns futures positions, but the file excludes these.
     """
     # exp_ticker = "VOO"
     exp_item_id = "0968"
@@ -122,7 +125,6 @@ def test_vanguard_etf_holdings_resp_parser(vanguard_test_resp):
 
     # calculated directly from the file
     exp_tot_holdings = 7281027674
-    exp_weight = 99.37
 
     holdings_df, ret_item_id = VanguardListings._parse_holdings_resp(vanguard_test_resp)
 
@@ -132,5 +134,7 @@ def test_vanguard_etf_holdings_resp_parser(vanguard_test_resp):
     assert len(holdings_date) == 1
     assert holdings_date[0].date() == exp_holdings_date
 
-    holdings_df_ = holdings_df[~holdings_df["ticker"].isna()]
+    holdings_df_ = holdings_df[
+        (~holdings_df["ticker"].isna()) & (holdings_df["security_type"] == "Equity")
+    ]  # remove S&P500 futures + short term reserves
     assert holdings_df_["amount"].sum() == exp_tot_holdings
