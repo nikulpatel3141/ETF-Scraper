@@ -23,6 +23,20 @@ def check_missing_cols(
             )
 
 
+def check_data_mismatch(
+    expected, returned, item_name: str, raise_error: bool = False
+) -> None:
+    """Checks for equality for expected and returned items, if not equal then
+    log an error and optionally raise an error.
+    """
+    if expected != returned:
+        msg = f"Mismatching {item_name}: queried {expected}, returned {returned}"
+        logger.warning(msg)
+
+        if raise_error:
+            raise ValueError(msg)
+
+
 def safe_urljoin(host, endpoint):
     """Same as urljoin but leading/trailing '/' makes no difference"""
     return f"{host.rstrip('/')}/{endpoint.lstrip('/')}"

@@ -34,9 +34,11 @@ class FundHolding:
     cusip: str
     name: str
     amount: float
+    weight: float
+    security_type: str
+    sector: str
     market_value: float
     notional_value: float  # != market_value eg for futures
-    weight: float
     price: float
     location: str
     exchange: str

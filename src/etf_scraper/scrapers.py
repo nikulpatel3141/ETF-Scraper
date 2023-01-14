@@ -8,7 +8,7 @@ import requests
 import pandas as pd
 import numpy as np
 
-from etf_scraper.utils import check_missing_cols, safe_urljoin
+from etf_scraper.utils import check_missing_cols, check_data_mismatch, safe_urljoin
 from etf_scraper.base import ProviderListings, SecurityListing
 
 logger = logging.getLogger(__name__)
@@ -384,3 +384,165 @@ class SSGAListings(ProviderListings):
             )
 
         return cls.retrieve_holdings_(sec_listing.ticker)
+
+
+class VanguardListings(ProviderListings):
+    provider = "Vanguard"
+    req_user_header = {
+        "user-agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36",
+    }  # need to pass otherwise requests will be denied
+    listing_endpoint = (
+        "https://investor.vanguard.com/investment-products/list/funddetail"
+    )
+    listing_resp_mapping = {
+        "ticker": "ticker",
+        "cusip": "cusip",
+        "longName": "fund_name",
+        "inceptionDate": "inception_date",
+        "fundId": "product_id",
+        "style": "asset_class",
+        "type": "subasset_class",
+    }
+    fund_url = "https://advisors.vanguard.com/investments/products/{}"
+
+    holding_col_mapping = {
+        "effectiveDate": "as_of_date",
+        "bticker": "ticker",
+        "sedol": "sedol",
+        "CUSIP": "cusip",
+        "name": "name",
+        "quantity": "amount",
+        "mktValPercent": "weight",
+        "parentIssueTypeName": "security_type",
+        "sector": "sector",
+        "market": "exchange",
+        "marketVal": "market_value",
+        "countryOfRiskCode": "location",
+    }
+
+    @classmethod
+    def holdings_endpoint(cls, product_id: str) -> str:
+        """Endpoint to send a GET request to for querying holdings.
+
+        Note: can also append `as-of-date=YYYY-MM-DD` in the payload to request a specific
+        date, but Vanguard will only return end of month holdings.
+        """
+        return (
+            "https://eds.ecs.gisp.c1.vanguard.com/eds-eip-distributions-service/"
+            f"holdings/holding-details-history/{product_id}.json"
+        )
+
+    @classmethod
+    def retrieve_listings(cls):
+        """
+        #TODO: missing important info: eg AUM, country etf - not possible to get without visiting individual
+        fund pages
+        #FIXME: duplicates via multiple share classes, eg VFIAX, VFFSX, VOO
+        """
+        resp = requests.get(cls.listing_endpoint, headers=cls.req_user_header)
+        resp.raise_for_status()
+        fund_data = resp.json()
+        fund_list = [x["profile"] for x in fund_data["fund"]["entity"]]
+        fund_df = pd.DataFrame(fund_list)
+
+        check_missing_cols(["ticker"], fund_df.columns, raise_error=True)
+        check_missing_cols(list(cls.listing_resp_mapping), fund_df.columns)
+
+        fund_df_ = fund_df.dropna(subset="ticker").rename(
+            columns=cls.listing_resp_mapping
+        )
+
+        def map_fund_type(fund_row: pd.Series):
+            if fund_row["isETF"]:
+                return "ETF"
+            elif fund_row["isMutualFund"]:
+                return "MF"
+            return np.nan
+
+        fund_types = fund_df_.apply(map_fund_type, axis=1)
+
+        fund_df_ = fund_df_.reindex(columns=list(cls.listing_resp_mapping.values()))
+
+        fund_df_.loc[:, "fund_type"] = fund_types
+
+        map_to_url = lambda x: cls.fund_url.format(x.upper())
+        fund_df_.loc[:, "product_url"] = fund_df_["ticker"].apply(map_to_url)
+
+        def parse_inception_date(x):
+            try:
+                return datetime.fromisoformat(x).date()
+            except:
+                return pd.NaT
+
+        fund_df_.loc[:, "inception_date"] = fund_df_["inception_date"].apply(
+            parse_inception_date
+        )
+        fund_df_.loc[:, "provider"] = cls.provider
+
+        return fund_df_
+
+    @classmethod
+    def _parse_holdings_resp(cls, holdings_resp):
+        """Parse the response from (a hidden) Vanguard API for holdings data"""
+        assert len(holdings_resp) == 1
+        holdings_resp_ = holdings_resp[0]
+
+        ret_item_id = holdings_resp_["portId"]
+        holdings_df_raw = pd.DataFrame(holdings_resp_["holdingDetailItem"])
+
+        check_missing_cols(
+            ["effectiveDate", "bticker", "quantity"],
+            holdings_df_raw.columns,
+            raise_error=True,
+        )
+        check_missing_cols(list(cls.holding_col_mapping), holdings_df_raw.columns)
+
+        holdings_df = holdings_df_raw.reindex(
+            columns=list(cls.holding_col_mapping)
+        ).rename(columns=cls.holding_col_mapping)
+        holdings_df.loc[:, "as_of_date"] = pd.to_datetime(holdings_df["as_of_date"])
+
+        for col in ["weight", "amount", "market_value"]:  # FIXME: repetition
+            holdings_df.loc[:, col] = pd.to_numeric(holdings_df[col])
+
+        return holdings_df, ret_item_id
+
+    @classmethod
+    def retrieve_holdings_(
+        cls, fund_ticker: str, product_id: str, holdings_date: date
+    ) -> pd.DataFrame:
+        """
+        Args:
+        - product_id: the internal ID Vanguard uses for their products, eg 0968 -> VOO
+        """
+        url = cls.holdings_endpoint(product_id)
+
+        payload = {"as-of-date": holdings_date.strftime("%Y-%m-%d")}
+
+        print(payload)
+        resp = requests.get(
+            url, params=payload, headers=VanguardListings.req_user_header
+        )
+        resp.raise_for_status()
+        resp_data = resp.json()
+
+        if not resp_data:  # will silently return no data
+            raise ValueError(
+                f"No Vanguard data returned for product_id: {product_id}, date: {holdings_date}"
+            )
+
+        holdings_df, ret_product_id = cls._parse_holdings_resp(resp_data)
+        check_data_mismatch(product_id, ret_product_id, "product id", raise_error=True)
+
+        ret_holdings_date = holdings_df["as_of_date"].drop_duplicates()
+
+        if len(ret_holdings_date) > 1:
+            raise ValueError(f"Multiple holding dates returned: {ret_holdings_date}")
+
+        ret_holdings_date = ret_holdings_date[0].date()
+        check_data_mismatch(
+            holdings_date, ret_holdings_date, "holdings date", raise_error=True
+        )
+        holdings_df.loc[:, "fund_ticker"] = fund_ticker
+
+        return holdings_df

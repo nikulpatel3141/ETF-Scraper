@@ -6,28 +6,37 @@ we are missing tests for when responses aren't as intended, though I haven't had
 """
 
 from datetime import date
+import json
 from pathlib import Path
 
 import pytest
 import numpy as np
 
-from etf_scraper.scrapers import ISharesListings, SSGAListings
+from etf_scraper.scrapers import ISharesListings, SSGAListings, VanguardListings
 
 DATA_DIR = Path(__file__).parent.joinpath("test_data")
 
 
+def _read_file(filename, read_mode):
+    resp_file = str(DATA_DIR.joinpath(filename))
+    with open(resp_file, read_mode) as f:
+        return f.read()
+
+
 @pytest.fixture
 def ishares_test_resp():
-    resp_file = str(DATA_DIR.joinpath("IShares_IVV_holdings_20221230_resp.csv"))
-    with open(resp_file, "r") as f:
-        return f.read()
+    return _read_file("IShares_IVV_holdings_20221230_resp.csv", "r")
 
 
 @pytest.fixture
 def ssga_test_resp():
-    resp_file = str(DATA_DIR.joinpath("SSGA_SPY_holdings_20230110_resp.xlsx"))
-    with open(resp_file, "rb") as f:
-        return f.read()
+    return _read_file("SSGA_SPY_holdings_20230110_resp.xlsx", "rb")
+
+
+@pytest.fixture
+def vanguard_test_resp():
+    resp_file = _read_file("Vanguard_VOO_holdings_20221130_resp.json", "r")
+    return json.loads(resp_file)
 
 
 def check_holdings_df(
@@ -94,7 +103,6 @@ def test_ssga_etf_holdings_resp_parser(ssga_test_resp):
     holdings_df, act_holdings_date, act_ticker = SSGAListings._parse_holdings_resp(
         ssga_test_resp
     )
-    print(holdings_df.dtypes)
 
     assert act_ticker == exp_ticker
     assert act_holdings_date == exp_holdings_date
@@ -102,3 +110,27 @@ def test_ssga_etf_holdings_resp_parser(ssga_test_resp):
     check_holdings_df(
         holdings_df, exp_tot_holdings, exp_first_ticker, exp_last_ticker, exp_weight
     )
+
+
+def test_vanguard_etf_holdings_resp_parser(vanguard_test_resp):
+    """Attempt to cross check response with a direct holdings file download.
+    Can't compare weights exactly due to rounding errors in the file
+    """
+    # exp_ticker = "VOO"
+    exp_item_id = "0968"
+    exp_holdings_date = date(year=2022, month=11, day=30)
+
+    # calculated directly from the file
+    exp_tot_holdings = 7281027674
+    exp_weight = 99.37
+
+    holdings_df, ret_item_id = VanguardListings._parse_holdings_resp(vanguard_test_resp)
+
+    assert ret_item_id == exp_item_id
+
+    holdings_date = holdings_df["as_of_date"].drop_duplicates()
+    assert len(holdings_date) == 1
+    assert holdings_date[0].date() == exp_holdings_date
+
+    holdings_df_ = holdings_df[~holdings_df["ticker"].isna()]
+    assert holdings_df_["amount"].sum() == exp_tot_holdings
