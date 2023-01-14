@@ -23,7 +23,7 @@ class ISharesListings(ProviderListings):
     )
     ajax_endpoint = "1467271812596.ajax"
 
-    response_mapping = {
+    listing_resp_mapping = {
         "fundName": "fund_name",
         "inceptionDate": "inception_date",
         "localExchangeTicker": "ticker",
@@ -68,11 +68,13 @@ class ISharesListings(ProviderListings):
 
         resp_df = pd.DataFrame(resp.json())
 
-        check_missing_cols(cls.response_mapping, resp_df.index)
+        check_missing_cols(cls.listing_resp_mapping, resp_df.index)
         check_missing_cols(cls.exp_cols, resp_df.index, raise_error=True)
 
         resp_df_ = (
-            resp_df.reindex(cls.response_mapping).rename(index=cls.response_mapping).T
+            resp_df.reindex(cls.listing_resp_mapping)
+            .rename(index=cls.listing_resp_mapping)
+            .T
         )
 
         build_url = lambda x: safe_urljoin(cls.host, x)

@@ -1,7 +1,8 @@
 """
 Tests we correctly parse responses for holdings data from different providers.
 
-Note: these aren't comprehensive tests (so far), we're just testing things work as intended.
+#TODO: these aren't comprehensive tests (so far), we're just testing things work as intended. In particular,
+we are missing tests for when responses aren't as intended, though I haven't had problems with this so far.
 """
 
 from datetime import date
@@ -54,11 +55,11 @@ def check_holdings_df(
 
     assert np.isclose(
         holdings_df["weight"].sum(), exp_weight
-    )  # floar can be slightly off
+    )  # float can be slightly off
 
 
 def test_ishares_etf_holdings_resp_parser(ishares_test_resp):
-    # exp_ticker = "IVV"
+    # exp_ticker = "IVV" # IShares doesn't include fund ticker in the response file
     exp_holdings_date = date(year=2022, month=12, day=30)
 
     # calculated directly from the file
