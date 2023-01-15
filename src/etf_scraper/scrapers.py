@@ -15,7 +15,7 @@ from etf_scraper.utils import (
     set_numeric_cols,
     strip_str_cols,
 )
-from etf_scraper.base import ProviderListings, SecurityListing
+from etf_scraper.base import Provider, ProviderListings, SecurityListing
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +28,7 @@ def _check_exp_provider(given, exp, class_name):
 
 
 class ISharesListings(ProviderListings):
-    provider = "IShares"
+    provider = Provider.IShares.value
     host = "https://www.ishares.com"
     listing_endpoint = (
         "/us/product-screener/product-screener-v3.1.jsn?dcrPath=/templatedata/config/product-screener-v3/"
@@ -125,18 +125,22 @@ class ISharesListings(ProviderListings):
             for k in summary_data
             if "Fund Holdings as of".lower() in k.lower()
         }
-        if as_of_date == "-":
-            raise ValueError(f"Found '-' as holdings date, no data received")
-        elif len(as_of_date) != 1:
+
+        if len(as_of_date) != 1:
             raise ValueError(
                 f"Was expecting an 'as of date' indicator, instead found: {as_of_date}"
             )
+
+        as_of_date = list(as_of_date)[0]
+
+        if as_of_date == "-":
+            raise ValueError(f"Found '-' as holdings date -> no data returned")
 
         logger.info(f"Found reported holdings date string {as_of_date}")
         logger.info("Attempting to parse holdings data")
 
         as_of_date = datetime.strptime(
-            as_of_date.pop(), "%b %d, %Y"
+            as_of_date, "%b %d, %Y"
         ).date()  # eg "Jan 03, 2022"
 
         if summary_data[-1] != "\xa0":
@@ -162,7 +166,7 @@ class ISharesListings(ProviderListings):
         return holdings_df, as_of_date
 
     @classmethod
-    def retrieve_holdings_(
+    def retrieve_holdings(
         cls, ticker: str, product_url: str, holdings_date: Union[date, None]
     ):
         """Query for IShares product holdings
@@ -195,20 +199,22 @@ class ISharesListings(ProviderListings):
             )
 
         holdings_df.loc[:, "fund_ticker"] = ticker
-        holdings_df.loc[:, "as_of_date"] = holdings_date
+        holdings_df.loc[:, "as_of_date"] = as_of_date
         return holdings_df
 
     @classmethod
-    def retrieve_holdings(cls, sec_listing: SecurityListing, holdings_date: date):
+    def _retrieve_holdings(cls, sec_listing: SecurityListing, holdings_date: date):
         _check_exp_provider(sec_listing.provider, cls.provider, cls.__name__)
-        return cls.retrieve_holdings_(
+        return cls.retrieve_holdings(
             sec_listing.ticker, sec_listing.product_url, holdings_date
         )
 
 
 class SSGAListings(ProviderListings):
-    provider = "SSGA"
+    provider = Provider.SSGA.value
     host = "https://www.ssga.com"
+
+    # FIXME: values should be enum
     ssga_products = {"mf": "MF", "etfs": "ETF"}  # ignore 'cash' and 'strategies'
 
     ssga_web_url = "https://www.ssga.com/bin/v1/ssmp/fund/fundfinder?country=us&language=en&role=intermediary&product=@all&ui=fund-finder"
@@ -366,7 +372,7 @@ class SSGAListings(ProviderListings):
         return holdings_df, as_of_date, ticker
 
     @classmethod
-    def retrieve_holdings_(cls, ticker: str) -> pd.DataFrame:
+    def retrieve_holdings(cls, ticker: str) -> pd.DataFrame:
         holdings_url = cls.etf_holdings_url.format(ticker.lower())
         resp = requests.get(holdings_url)
         resp.raise_for_status()
@@ -387,7 +393,7 @@ class SSGAListings(ProviderListings):
         return holdings_df
 
     @classmethod
-    def retrieve_holdings(
+    def _retrieve_holdings(
         cls, sec_listing: SecurityListing, holdings_date: Union[date, None]
     ) -> pd.DataFrame:
         _check_exp_provider(sec_listing.provider, cls.provider, cls.__name__)
@@ -402,11 +408,11 @@ class SSGAListings(ProviderListings):
                 f"Can only retrieve SSGA ETF holdings, not {sec_listing.fund_type}"
             )
 
-        return cls.retrieve_holdings_(sec_listing.ticker)
+        return cls.retrieve_holdings(sec_listing.ticker)
 
 
 class VanguardListings(ProviderListings):
-    provider = "Vanguard"
+    provider = Provider.Vanguard.value
     req_user_header = {
         "user-agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36",
     }  # need to pass otherwise requests will be denied
@@ -527,7 +533,7 @@ class VanguardListings(ProviderListings):
         return holdings_df, ret_item_id
 
     @classmethod
-    def retrieve_holdings_(
+    def retrieve_holdings(
         cls, fund_ticker: str, product_id: str, holdings_date: date
     ) -> pd.DataFrame:
         """
@@ -539,10 +545,8 @@ class VanguardListings(ProviderListings):
         Note: ticker may be missing, eg for short-term reserve positions
         """
         url = cls.holdings_endpoint(product_id)
-
         payload = {"as-of-date": holdings_date.strftime("%Y-%m-%d")}
 
-        print(payload)
         resp = requests.get(
             url, params=payload, headers=VanguardListings.req_user_header
         )
@@ -571,14 +575,14 @@ class VanguardListings(ProviderListings):
         return holdings_df
 
     @classmethod
-    def retrieve_holdings(
+    def _retrieve_holdings(
         cls, sec_listing: SecurityListing, holdings_date: date
     ) -> pd.DataFrame:
         """Retrieve Vanguard ETF/MF holdings. Will only return data for month end
         holdings dates.
         """
         _check_exp_provider(sec_listing.provider, cls.provider, cls.__name__)
-        return cls.retrieve_holdings_(
+        return cls.retrieve_holdings(
             sec_listing.ticker, sec_listing.product_id, holdings_date
         )
 
@@ -586,7 +590,7 @@ class VanguardListings(ProviderListings):
 class InvescoListings(ProviderListings):
     """TODO: Currently only works for ETF data (ie we are missing Invesco MFs)"""
 
-    provider = "Invesco"
+    provider = Provider.Invesco.value
 
     date_fmt = "%m/%d/%Y"
     listings_url = (
@@ -647,7 +651,7 @@ class InvescoListings(ProviderListings):
         listings_df_.loc[:, "inception_date"] = listings_df_["inception_date"].apply(
             cls._parse_date
         )
-        listings_df_.loc[:, "item_url"] = listings_df_["ticker"].apply(
+        listings_df_.loc[:, "product_url"] = listings_df_["ticker"].apply(
             lambda x: cls.item_url.format(x)
         )
         listings_df_.loc[:, "fund_type"] = "ETF"
@@ -678,7 +682,7 @@ class InvescoListings(ProviderListings):
         return holdings_df_
 
     @classmethod
-    def retrieve_holdings_(cls, ticker: str):
+    def retrieve_holdings(cls, ticker: str):
         """Retrieve the latest holdings for the given ETF ticker"""
         url = cls.holdings_url.format(ticker.upper())
         resp = requests.get(url)
@@ -703,7 +707,7 @@ class InvescoListings(ProviderListings):
         return holdings_df
 
     @classmethod
-    def retrieve_holdings(
+    def _retrieve_holdings(
         cls, sec_listing: SecurityListing, holdings_date: Union[None, date] = None
     ) -> pd.DataFrame:
         """Retrieve Invesco ETF holdings data"""
@@ -712,4 +716,4 @@ class InvescoListings(ProviderListings):
         if holdings_date:
             raise ValueError(f"Can only retrieve the latest holdings from Invesco")
 
-        return cls.retrieve_holdings_(sec_listing.ticker)
+        return cls.retrieve_holdings(sec_listing.ticker)

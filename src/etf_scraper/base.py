@@ -1,26 +1,37 @@
+from enum import Enum
 from datetime import date
+from typing import NamedTuple, Union
 
 import pandas as pd
+import numpy as np
 
 
-class SecurityListing:
+class Provider(Enum):
+    IShares = "IShares"
+    SSGA = "SSGA"
+    Vanguard = "Vanguard"
+    Invesco = "Invesco"
+
+
+class SecurityListing(NamedTuple):
     """Describes a single security (ETF/Mutual Fund etc), including its product page"""
 
-    fund_name: str
     ticker: str
-    provider: str
-    asset_class: str
-    product_url: str
-    fund_type: str  # ETF or Mutual Fund
-    cusip: str
-    isin: str
-    product_id: str
-    inception_date: date
-    country: str
-    region: str
-    net_assets: float
-    benchmark: str
-    exchange: str
+    provider: Provider
+    fund_name: str = ""
+    asset_class: str = ""
+    subasset_class: str = ""
+    product_url: str = ""
+    fund_type: str = ""  # ETF or Mutual Fund # FIXME: should be an enum
+    cusip: str = ""
+    isin: str = ""
+    product_id: str = ""
+    inception_date: Union[date, None] = None
+    country: str = ""
+    region: str = ""
+    net_assets: float = np.nan
+    benchmark: str = ""
+    exchange: str = ""
 
 
 class FundHolding:
@@ -60,7 +71,7 @@ class ProviderListings:
         raise NotImplementedError
 
     @classmethod
-    def retrieve_holdings(
+    def _retrieve_holdings(
         cls, sec_listing: SecurityListing, holdings_date: date
     ) -> pd.DataFrame:
         """Query the provider website for the holdings of the given security

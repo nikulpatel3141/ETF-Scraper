@@ -1,5 +1,6 @@
 import logging
-from typing import Sequence
+from typing import Callable, Sequence, Union
+from multiprocessing.pool import ThreadPool
 
 import pandas as pd
 

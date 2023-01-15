@@ -7,7 +7,7 @@ name = "etf_scraper"
 dynamic = ["version"]
 description = "Scrape ETF and Mutual Fund holdings from major providers"
 readme = "README.rst"
-requires-python = ">=3.8"
+requires-python = ">=3.10"
 classifiers = [
     "Programming Language :: Python :: 3",
 ]
@@ -24,3 +24,9 @@ dependencies = [
 tests = [
     "pytest",
 ]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+"etf_scraper.data" = ["*.csv"]
