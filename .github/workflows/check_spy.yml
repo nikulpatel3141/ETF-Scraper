@@ -1,3 +1,8 @@
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "01 19 * * 1-5"
+
 jobs:
   call-workflow-2-in-local-repo:
     uses: ./.github/workflows/check-scraper.yml
