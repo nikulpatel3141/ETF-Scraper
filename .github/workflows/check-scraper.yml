@@ -24,7 +24,12 @@ jobs:
         shell: bash
         run: |
           python3 scripts/scrape_etf.py --ticker ${{ inputs.etf_ticker }} >> holdings.csv
-          if [ "$(cat holdings.csv | wc -l)" -lt "${{ inputs.expected_rows }}" ]; then
+
+          NUM_HOLDINGS=$(cat holdings.csv | wc -l)
+
+          echo "Found ${NUM_HOLDINGS} holdings for ${{ inputs.etf_ticker }}"
+
+          if [ "${NUM_HOLDINGS}" -lt "${{ inputs.expected_rows }}" ]; then
             printf '%s\n' "Scraping for  failed for ticker ${{ inputs.etf_ticker }}" >&2
             exit 1
           fi
