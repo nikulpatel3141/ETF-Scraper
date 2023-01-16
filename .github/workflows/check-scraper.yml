@@ -21,7 +21,7 @@ jobs:
       - name: Build
         run: python3 -m pip install --user -e .
       - name: Scrape ETFS
-      - shell: bash
+        shell: bash
         run: |
           python3 scripts/scrape_etf.py --ticker ${{ inputs.etf_ticker }} >> holdings.csv
           if [ "$(cat holdings.csv | wc -l)" -lt "${{ inputs.expected_rows }}" ]; then
