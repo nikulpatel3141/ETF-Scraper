@@ -23,7 +23,7 @@ jobs:
       - name: Scrape ETFS
         run: |
           python3 scripts/scrape_etf.py --ticker ${{ inputs.etf_ticker }} >> holdings.csv
-          if ["$(cat holdings.csv | wc - l)" -lt "${{ inputs.expected_rows }}" ]; then
+          if ["$(cat holdings.csv | wc -l)" -lt "${{ inputs.expected_rows }}" ]; then
             printf '%s\n' "Scraping for  failed for ticker ${{ inputs.etf_ticker }}" >&2
             exit 1
           fi
