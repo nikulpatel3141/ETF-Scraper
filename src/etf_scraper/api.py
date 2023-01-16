@@ -1,7 +1,8 @@
-from datetime import date
+from datetime import date, datetime
 import logging
 from multiprocessing.pool import ThreadPool
-from typing import List, Self, Union
+from typing import List, Union
+import dateutil.parser
 
 import pandas as pd
 from tenacity import retry
@@ -16,7 +17,7 @@ from etf_scraper.scrapers import (
 )
 
 SCRAPERS = {
-    k.provider.value: k
+    k.provider: k
     for k in [
         ISharesListings,
         InvescoListings,
@@ -92,11 +93,18 @@ class ETFScraper:
     def query_holdings(self, ticker: str, holdings_date: Union[date, str, None] = None):
         """Query for holdings for the given ticker + holdings_date.
 
-
+        Args:
+        - ticker: the fund ticker to query. Must be in self.listings_df.
+        - holdings date: the holdings date to query. If blank then will query for the latest
+        possible holdings. If given as a string, then attempt to parse using
+        dateutil.parser.parse.
 
         #FIXME: could have provider = None: Union[None, Provider] as an arg to help reduce
         # duplicate tickers. As of Jan 2023 this isn't a problem.
         """
+        if holdings_date and isinstance(holdings_date, str):
+            holdings_date = dateutil.parser.parse(holdings_date).date()
+
         sec_listing = self._find_sec_listing(ticker)
 
         date_log_str = "latest" if not holdings_date else holdings_date

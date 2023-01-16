@@ -1,0 +1,6 @@
+jobs:
+  call-workflow-2-in-local-repo:
+    uses: ./.github/workflows/check-scraper.yml
+    with:
+      etf_ticker: SPY
+      expected_rows: 495
