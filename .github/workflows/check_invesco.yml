@@ -1,4 +1,4 @@
-name: SSGA
+name: Invesco (QQQ)
 
 on:
   workflow_dispatch:
@@ -9,5 +9,5 @@ jobs:
   test-ssga-spy:
     uses: ./.github/workflows/check-scraper.yml
     with:
-      etf_ticker: SPY
-      expected_rows: 495
+      etf_ticker: QQQ
+      expected_rows: 95

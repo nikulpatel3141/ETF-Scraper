@@ -1,0 +1,13 @@
+name: IShares (IVV)
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "01 19 * * 1-5"
+
+jobs:
+  test-ssga-spy:
+    uses: ./.github/workflows/check-scraper.yml
+    with:
+      etf_ticker: IVV
+      expected_rows: 495
