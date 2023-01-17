@@ -6,7 +6,7 @@ on:
     - cron: "01 19 * * 1-5"
 
 jobs:
-  test-ssga-spy:
+  scrape:
     uses: ./.github/workflows/check-scraper.yml
     with:
       etf_ticker: VOO

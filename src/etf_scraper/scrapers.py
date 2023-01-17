@@ -4,6 +4,7 @@ from urllib.parse import urljoin
 from io import StringIO
 from datetime import date, datetime
 
+from dateutil.relativedelta import relativedelta
 import requests
 import pandas as pd
 import numpy as np
@@ -534,16 +535,25 @@ class VanguardListings(ProviderListings):
 
     @classmethod
     def retrieve_holdings(
-        cls, fund_ticker: str, product_id: str, holdings_date: date
+        cls, fund_ticker: str, product_id: str, holdings_date: Union[date, None] = None
     ) -> pd.DataFrame:
         """
         Args:
         - fund_ticker: ETF/MF ticker. This is only for appending to the returned dataframe
         for consistency. It doesn't validate this corresponds to the given product_id.
         - product_id: the internal ID Vanguard uses for their products, eg 0968 -> VOO
+        - holdings_date: holdings date to query. If not given then will default to the previous
+        month end.
 
         Note: ticker may be missing, eg for short-term reserve positions
         """
+        if not holdings_date:
+            date_now = datetime.now().date().replace(day=1)
+            holdings_date = date_now - relativedelta(days=1)
+            logger.info(
+                f"No holdings date given, defaulting to the previous month end {holdings_date}"
+            )
+
         url = cls.holdings_endpoint(product_id)
         payload = {"as-of-date": holdings_date.strftime("%Y-%m-%d")}
 
@@ -555,7 +565,7 @@ class VanguardListings(ProviderListings):
 
         if not resp_data:  # will silently return no data
             raise ValueError(
-                f"No Vanguard data returned for product_id: {product_id}, date: {holdings_date}"
+                f"No Vanguard data returned for ticker: {fund_ticker}, date: {holdings_date}"
             )
 
         holdings_df, ret_product_id = cls._parse_holdings_resp(resp_data)
@@ -576,10 +586,11 @@ class VanguardListings(ProviderListings):
 
     @classmethod
     def _retrieve_holdings(
-        cls, sec_listing: SecurityListing, holdings_date: date
+        cls, sec_listing: SecurityListing, holdings_date: Union[date, None] = None
     ) -> pd.DataFrame:
-        """Retrieve Vanguard ETF/MF holdings. Will only return data for month end
-        holdings dates.
+        """Retrieve Vanguard ETF/MF holdings.
+
+        Note: as of writing, Vanguard only provides month end data.
         """
         _check_exp_provider(sec_listing.provider, cls.provider, cls.__name__)
         return cls.retrieve_holdings(
