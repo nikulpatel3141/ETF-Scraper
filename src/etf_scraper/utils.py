@@ -1,8 +1,8 @@
 import logging
-from typing import Callable, Sequence, Union
-from multiprocessing.pool import ThreadPool
+from typing import Sequence
 
 import pandas as pd
+import pandas_market_calendars as mcal
 
 logger = logging.getLogger(__name__)
 
@@ -57,3 +57,9 @@ def strip_str_cols(df: pd.DataFrame, cols: Sequence):
 
     for col in cols:
         df.loc[:, col] = df[col].str.strip()
+
+
+def get_interval_dates(
+    start_date: str, end_date: str, month_ends: bool = False, trading_days=False
+):
+    """ """

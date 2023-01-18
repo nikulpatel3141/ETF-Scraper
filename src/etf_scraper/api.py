@@ -1,11 +1,11 @@
-from datetime import date, datetime
 import logging
+from functools import lru_cache
+from datetime import date
 from multiprocessing.pool import ThreadPool
 from typing import List, Union
-import dateutil.parser
 
+import dateutil.parser
 import pandas as pd
-from tenacity import retry
 
 from etf_scraper.config import LISTINGS_FILE
 from etf_scraper.base import Provider, SecurityListing
@@ -59,6 +59,7 @@ def query_listings(providers: Union[None, List[Provider]] = None) -> pd.DataFram
     return pd.concat(from_pool)
 
 
+@lru_cache
 def load_listings() -> pd.DataFrame:
     """Load the listings file shipped with the etf_scraper module"""
     logging.debug(f"Loading default listings file from {LISTINGS_FILE}")

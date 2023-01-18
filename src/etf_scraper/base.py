@@ -6,6 +6,12 @@ import pandas as pd
 import numpy as np
 
 
+class InvalidParameterError(Exception):
+    """An invalid combination of parameters was sent to an API.
+    Most likely this is from requesting data for an invalid date
+    """
+
+
 class Provider(Enum):
     IShares = "IShares"
     SSGA = "SSGA"
