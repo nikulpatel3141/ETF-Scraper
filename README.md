@@ -7,6 +7,10 @@
 
 Scrape public ETF and Mutual Fund holdings information, currently from iShares, SSGA, Vanguard and Invesco.
 
+The aim of this library is to provide a simple, consistent interface for scraping ETF/MF holdings data across multiple providers and asset classes wherever this data is available.
+
+This is still a work in progress and may not work for _every_ listed fund. In particular, I've focused on making this work for equity ETFs, although with some more work it can be extended to work for mutual funds and credit funds (pull requests are welcome).
+
 ## Installation
 
 ```bash

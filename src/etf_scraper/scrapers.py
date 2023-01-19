@@ -16,7 +16,12 @@ from etf_scraper.utils import (
     set_numeric_cols,
     strip_str_cols,
 )
-from etf_scraper.base import Provider, ProviderListings, SecurityListing
+from etf_scraper.base import (
+    Provider,
+    ProviderListings,
+    SecurityListing,
+    InvalidParameterError,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -135,7 +140,9 @@ class ISharesListings(ProviderListings):
         as_of_date = list(as_of_date)[0]
 
         if as_of_date == "-":
-            raise ValueError(f"Found '-' as holdings date -> no data returned")
+            raise InvalidParameterError(
+                f"Found '-' as holdings date -> no data returned"
+            )
 
         logger.info(f"Found reported holdings date string {as_of_date}")
         logger.info("Attempting to parse holdings data")
@@ -400,12 +407,12 @@ class SSGAListings(ProviderListings):
         _check_exp_provider(sec_listing.provider, cls.provider, cls.__name__)
 
         if holdings_date:
-            raise NotImplementedError(
+            raise InvalidParameterError(
                 f"Can only query latest holdings (holdings_date=None) from SSGA"
             )
 
         if sec_listing.fund_type != "ETF":
-            raise NotImplementedError(
+            raise InvalidParameterError(
                 f"Can only retrieve SSGA ETF holdings, not {sec_listing.fund_type}"
             )
 
@@ -564,7 +571,7 @@ class VanguardListings(ProviderListings):
         resp_data = resp.json()
 
         if not resp_data:  # will silently return no data
-            raise ValueError(
+            raise InvalidParameterError(
                 f"No Vanguard data returned for ticker: {fund_ticker}, date: {holdings_date}"
             )
 
@@ -725,6 +732,8 @@ class InvescoListings(ProviderListings):
         _check_exp_provider(sec_listing.provider, cls.provider, cls.__name__)
 
         if holdings_date:
-            raise ValueError(f"Can only retrieve the latest holdings from Invesco")
+            raise InvalidParameterError(
+                f"Can only retrieve the latest holdings from Invesco (holdings_date=None)"
+            )
 
         return cls.retrieve_holdings(sec_listing.ticker)
