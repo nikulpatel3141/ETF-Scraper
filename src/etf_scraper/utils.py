@@ -1,8 +1,10 @@
+from datetime import date
 import logging
 from typing import Sequence
 
 import pandas as pd
-import pandas_market_calendars as mcal
+from pandas.tseries.offsets import MonthEnd, BDay
+
 
 logger = logging.getLogger(__name__)
 
@@ -59,7 +61,40 @@ def strip_str_cols(df: pd.DataFrame, cols: Sequence):
         df.loc[:, col] = df[col].str.strip()
 
 
-def get_interval_dates(
-    start_date: str, end_date: str, month_ends: bool = False, trading_days=False
-):
-    """ """
+def _get_trd_dates(start_date: str, end_date: str, exchange: str) -> pd.DatetimeIndex:
+    import pandas_market_calendars as mcal
+
+    schedule = mcal.get_calendar(exchange).schedule(start_date, end_date)
+    return mcal.date_range(schedule, frequency="1D").normalize().drop_duplicates()
+
+
+def get_interval_query_dates(
+    start_date: str,
+    end_date: str,
+    month_ends: bool = False,
+    trading_days=False,
+    exchange="NYSE",
+) -> Sequence[date]:
+    """Return a list of days to query holdings data for.
+
+    Args:
+    - month_ends: if True, then return only month end days within the specified range
+    - trading_days: if True, then also subset to trading days. If month_ends=True too then
+    selects the last trading day of each month.
+    - exchange: The exchange schedule to use when trading_days=True
+    """
+    if not trading_days:
+        freq = "M" if month_ends else "B"
+        return pd.bdate_range(start_date, end_date, freq=freq).date
+
+    if not month_ends:
+        return _get_trd_dates(start_date, end_date, exchange).date
+
+    # buffer in case last day is a trading month end
+    end_date_ = pd.to_datetime(end_date) + BDay(1)
+
+    date_range = _get_trd_dates(start_date, end_date_, exchange)
+    day_series = pd.Series(date_range, index=date_range)
+
+    month_end_trd_days = day_series.groupby(day_series.index.month).tail(1)
+    return month_end_trd_days.loc[start_date:end_date].index.date

@@ -104,7 +104,7 @@ class ETFScraper:
         # duplicate tickers. As of Jan 2023 this isn't a problem.
         """
         if holdings_date and isinstance(holdings_date, str):
-            holdings_date = dateutil.parser.parse(holdings_date).date()
+            holdings_date = pd.to_datetime(holdings_date).date()
 
         sec_listing = self._find_sec_listing(ticker)
 
