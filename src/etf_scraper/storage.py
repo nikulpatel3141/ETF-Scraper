@@ -36,7 +36,7 @@ def holdings_filename(ticker: str, holdings_date: date, file_extension: str) -> 
 
 def parse_holdings_filename(filename: str):
     """Go from a filename output by `holdings_filename` to the ticker + date + extension."""
-    base, ext = filename.rsplit(".")
+    base, ext = filename.rsplit(".", 1)
     ext_ = "." + ext
 
     ticker, date_str = base.split("_", 1)
@@ -48,19 +48,20 @@ def parse_holdings_filename(filename: str):
 def list_unqueried_data(
     existing_files: list[str],
     expected_dates: List[date],
+    expected_tickers: List[str],
 ) -> List[date]:
     """Find the list of dates + tickers we are missing data for given an existing
     list of files. Expects filenames to be in the format returned by `holdings_filename`
 
     #TODO: allow users to pass their own filename parser
     """
-    missing_data = []
+    missing_data = {tuple(x) for x in product(expected_tickers, expected_dates)}
 
     for x in existing_files:
         ticker, date_, _ = parse_holdings_filename(Path(x).name)
-        if date_ not in expected_dates:
-            continue
-        missing_data.append((ticker, date_))
+        if (date_ in expected_dates) and (ticker in expected_tickers):
+            missing_data.remove((ticker, date_))
+            # missing_data.append()
 
     return missing_data
 

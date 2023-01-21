@@ -84,8 +84,8 @@ def get_interval_query_dates(
     - exchange: The exchange schedule to use when trading_days=True
     """
     if not trading_days:
-        freq = "M" if month_ends else "B"
-        return pd.bdate_range(start_date, end_date, freq=freq).date
+        freq = "BM" if month_ends else "B"
+        return pd.date_range(start_date, end_date, freq=freq).date
 
     if not month_ends:
         return _get_trd_dates(start_date, end_date, exchange).date
