@@ -8,7 +8,7 @@ import logging
 from datetime import date, datetime
 from pathlib import Path
 from itertools import product
-from typing import Callable, List, Union
+from typing import Callable, List, Sequence, Union
 from traceback import format_exc
 from multiprocessing.pool import ThreadPool
 
@@ -67,8 +67,8 @@ def list_unqueried_data(
 
 
 def query_range(
-    query_dates: list[date],
-    query_tickers: list[str],
+    query_dates: Sequence[date],
+    query_tickers: Sequence[str],
     etf_scraper: ETFScraper,
     save_func: Callable,
     num_threads=10,

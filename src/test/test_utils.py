@@ -66,9 +66,11 @@ def test_list_unqueried_data(existing_files):
         ["2023-01-16", "2023-01-21", False, True, _day_list(2023, 1, range(17, 21))],
         ["2023-01-16", "2023-01-21", False, False, _day_list(2023, 1, range(16, 21))],
         ["2023-01-16", "2023-01-16", False, True, []],
+        ["2023-01-16", "2023-01-16", False, False, _day_list(2023, 1, [16])],
         ["2023-01-01", "2023-07-21", True, False, _MONTH_ENDS],
         ["2023-01-16", "2023-07-21", True, False, _MONTH_ENDS],
         ["2023-01-16", "2023-01-21", True, True, []],
+        ["2023-01-16", "2023-01-21", True, False, []],
     ],
 )
 def test_get_interval_query_dates(
