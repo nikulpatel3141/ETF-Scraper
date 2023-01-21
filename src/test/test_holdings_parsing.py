@@ -34,6 +34,11 @@ def ishares_test_resp():
 
 
 @pytest.fixture
+def ishares_test_dupl_resp():
+    return _read_file("IShares_HEWU_holdings_20230121.csv", "r")
+
+
+@pytest.fixture
 def ssga_test_resp():
     return _read_file("SSGA_SPY_holdings_20230110_resp.xlsx", "rb")
 
@@ -77,7 +82,6 @@ def check_holdings_df(
 
     # float values so need np.isclose
     if exp_tot_mkt_val is not None:
-        print(holdings_df["market_value"].sum(), exp_tot_mkt_val)
         assert np.isclose(holdings_df["market_value"].sum(), exp_tot_mkt_val)
 
     if exp_weight:
@@ -200,4 +204,32 @@ def test_invesco_etf_holdings_resp_parser(invesco_test_resp):
         exp_first_ticker="MSFT",
         exp_last_ticker="LCID",
         exp_weight=exp_weight,
+    )
+
+
+def test_ishares_dupl_holdings_resp_parser(ishares_test_dupl_resp):
+    # exp_ticker = "HEWU" # IShares doesn't include fund ticker in the response file
+    exp_holdings_date = date(year=2023, month=1, day=20)
+
+    # calculated directly from the file
+    exp_tot_holdings = -10921410
+    exp_tot_mkt_val = 14220570.81
+    exp_weight = 100
+    exp_first_ticker = "EWU"
+    exp_last_ticker = "GBP"
+
+    # with open(resp_file, "r") as f:
+    holdings_df, act_holdings_date = ISharesListings._parse_holdings_resp(
+        ishares_test_dupl_resp
+    )
+
+    assert act_holdings_date == exp_holdings_date
+
+    check_holdings_df(
+        holdings_df,
+        exp_tot_holdings,
+        exp_tot_mkt_val,
+        exp_first_ticker,
+        exp_last_ticker,
+        exp_weight,
     )

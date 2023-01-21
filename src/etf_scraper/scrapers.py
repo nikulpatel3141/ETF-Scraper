@@ -123,8 +123,9 @@ class ISharesListings(ProviderListings):
 
     @classmethod
     def _parse_holdings_resp(cls, resp_content):
+        header_rows = 9
         raw_data = StringIO(resp_content)
-        summary_data = [raw_data.readline().rstrip("\n") for _ in range(9)]
+        summary_data = [raw_data.readline().rstrip("\n") for _ in range(header_rows)]
 
         as_of_date = {
             k.split(",", 1)[-1].strip("'\"")
@@ -161,6 +162,23 @@ class ISharesListings(ProviderListings):
             raw_data, thousands=",", na_values="-"
         )  # shouldn't need to skip any rows now
 
+        # BUG: sometimes the content is duplicated, so drop the duplicated information
+        doc_intro = summary_data[0]
+        dupl_ind = holdings_df.iloc[:, 0].fillna("").str.strip() == doc_intro.strip()
+
+        if n := dupl_ind.sum():
+            logger.warning(
+                f"Detected response contains {n} duplicates, attempting to remove them"
+            )
+            cutoff = dupl_ind.replace(False, np.nan).first_valid_index()
+            holdings_df = pd.read_csv(
+                StringIO(resp_content),
+                skiprows=header_rows,
+                nrows=cutoff,
+                thousands=",",
+                na_values="-",
+            )
+
         check_missing_cols(cls.exp_holding_cols, holdings_df.columns, raise_error=True)
 
         holdings_df = holdings_df.rename(columns=cls.holding_col_mapping)
@@ -170,7 +188,6 @@ class ISharesListings(ProviderListings):
         set_numeric_cols(
             holdings_df, ["amount", "weight", "market_value", "price", "notional_value"]
         )
-
         return holdings_df, as_of_date
 
     @classmethod
