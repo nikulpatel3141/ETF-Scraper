@@ -3,7 +3,7 @@ import logging
 from typing import Sequence
 
 import pandas as pd
-from pandas.tseries.offsets import MonthEnd, BDay
+from pandas.tseries.offsets import BDay
 
 
 logger = logging.getLogger(__name__)
@@ -96,5 +96,5 @@ def get_interval_query_dates(
     date_range = _get_trd_dates(start_date, end_date_, exchange)
     day_series = pd.Series(date_range, index=date_range)
 
-    month_end_trd_days = day_series.groupby(day_series.index.month).tail(1)
+    month_end_trd_days = day_series.groupby(pd.Grouper(freq="M")).last()
     return month_end_trd_days.loc[start_date:end_date].index.date
