@@ -266,6 +266,8 @@ class SSGAListings(ProviderListings):
         "Local Currency": "local_currency",
     }
 
+    holdings_na_rep = {"weight": ["-"], "amount": ["-"]}
+
     @classmethod
     def _query_ssga_fund_doc(cls) -> pd.DataFrame:
         """Query the document SSGA provides for ETF listings information such as
@@ -373,6 +375,9 @@ class SSGAListings(ProviderListings):
         holdings_df = holdings_df.reindex(
             columns=list(cls.etf_holdings_col_map)
         ).rename(columns=cls.etf_holdings_col_map)
+
+        for col, na_vals in cls.holdings_na_rep.items():
+            holdings_df.loc[:, col] = holdings_df[col].replace(na_vals, np.nan)
 
         strip_str_cols(holdings_df, ["ticker"])
         set_numeric_cols(holdings_df, ["weight", "amount"])
