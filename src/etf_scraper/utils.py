@@ -97,4 +97,5 @@ def get_interval_query_dates(
     day_series = pd.Series(date_range, index=date_range)
 
     month_end_trd_days = day_series.groupby(pd.Grouper(freq="M")).last()
-    return month_end_trd_days.loc[start_date:end_date].index.date
+    month_end_trd_days_ = pd.Series(month_end_trd_days, index=month_end_trd_days)
+    return month_end_trd_days_.loc[start_date:end_date].index.date
