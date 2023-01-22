@@ -4,7 +4,6 @@ WORKDIR etf_scraper
 
 COPY . .
 
-RUN pip install -e .
-
+RUN pip install .
 
 CMD ['python', 'scripts/scrape_etf.py']

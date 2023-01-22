@@ -24,6 +24,9 @@ dependencies = [
 tests = [
     "pytest",
 ]
+gcs = [
+    "gcsfs",
+]
 
 [tool.setuptools.packages.find]
 where = ["src"]

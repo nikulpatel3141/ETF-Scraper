@@ -5,6 +5,7 @@ Defauly saving here is done using Pandas, so should work seamlessly between
 local and cloud infrastructure.
 """
 import logging
+import os
 from datetime import date, datetime
 from pathlib import Path
 from itertools import product
@@ -20,6 +21,7 @@ from tenacity import (
     before_sleep_log,
 )
 import pandas as pd
+from pandas.io.common import is_fsspec_url
 
 from etf_scraper.base import InvalidParameterError
 from etf_scraper.api import ETFScraper
@@ -27,6 +29,28 @@ from etf_scraper.api import ETFScraper
 DATE_FMT = "%Y_%m_%d"
 
 logger = logging.getLogger(__name__)
+
+
+def list_files(path: str, extension: str) -> List[str]:
+    """Recursively list all files ending with the given extension.
+
+    Currently works for local filesystems and GCS buckets only.
+    """
+    if not is_fsspec_url(path):
+        logger.debug(f"Given path {path} looks local")
+        return [str(x) for x in Path(path).rglob("*" + extension)]
+    elif path.startswith(("gs://", "gcs://")):
+        logger.debug(f"Found a GCS path {path}")
+
+        import gcsfs
+
+        fs = gcsfs.GCSFileSystem()
+        glob_uri = os.path.join(path, "*" + extension)
+        return ["gs://" + x for x in fs.glob(glob_uri)]
+    else:
+        raise NotImplementedError(
+            f"Can only list local and GCS filesystems, not for {path}"
+        )
 
 
 def holdings_filename(ticker: str, holdings_date: date, file_extension: str) -> str:
