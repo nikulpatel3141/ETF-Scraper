@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from pydantic import BaseModel
 
 
-from etf_scraper.storage import SaveFormat
+from etf_scraper.storage import SaveFormat, format_hist_query_output
 from etf_scraper.main import scrape_holdings
 
 
@@ -26,8 +26,8 @@ app = FastAPI()
 
 
 @app.get("/")
-def scrape(scrape_request: ETFScrapeRequest):
-    scrape_holdings(
+def scrape(scrape_request: ETFScrapeRequest) -> List:
+    rpt = scrape_holdings(
         tickers=scrape_request.tickers,
         start_date=scrape_request.start_date,
         end_date=scrape_request.end_date,
@@ -35,7 +35,9 @@ def scrape(scrape_request: ETFScrapeRequest):
         trading_days=scrape_request.trading_days,
         overwrite=scrape_request.overwrite,
         save_dir=scrape_request.save_dir,
-        out_fmt=scrape_request.format,
+        out_fmt=scrape_request.format.value,
         num_threads=scrape_request.num_threads,
         exchange=scrape_request.exchange,
     )
+    output = [{"ticker": k[0], "query_date": k[1], **v} for k, v in rpt.items()]
+    return output

@@ -8,7 +8,7 @@ from etf_scraper.storage import (
     list_files,
     list_unqueried_data,
     query_hist_ticker_dates,
-    save_func,
+    default_save_func,
     format_hist_query_output,
     SaveFormat,
 )
@@ -100,7 +100,7 @@ def scrape_holdings(
         query_dates,
         tickers,
     )
-    save_func_ = partial(save_func, out_dir=save_dir, out_fmt=out_fmt)
+    save_func_ = partial(default_save_func, out_dir=save_dir, out_fmt=out_fmt)
 
     query_rpt = query_hist_ticker_dates(
         query_ticker_dates=to_query,

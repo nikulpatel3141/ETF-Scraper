@@ -97,6 +97,31 @@ def list_unqueried_data(
     return list(missing_data)
 
 
+def default_save_func(
+    holdings_df: pd.DataFrame,
+    ticker: str,
+    holdings_date: date,
+    out_dir: str,
+    out_fmt: SaveFormat = SaveFormat.csv,
+) -> Path:
+    """Example function to pass to `query_range`. Saves output query date to
+    a file in out_dir (can also be local or a bucket on the cloud).
+
+    If query_date not given then will infer the holdings date from the returned data.
+
+    Args:
+    - out_fmt: determines the file format + extension used to save the data.
+    Valid values are eg "csv", "parquet", "pickle".
+    Uses Pandas to_{{out_fmt}} to save data and appends .{{out_fmt}} to the filename, eg
+    out_fmt="csv" will use df.to_csv and save to a file {ticker}_{date}.csv
+    """
+    filename = holdings_filename(ticker, holdings_date, "." + out_fmt)
+    out_path = Path(out_dir).joinpath(filename)
+    logger.info(f"Saving holdings to {out_path}")
+    getattr(holdings_df, f"to_{out_fmt}")(out_path, index=False)
+    return out_path
+
+
 def query_hist_ticker_dates(
     query_ticker_dates: Sequence[Tuple[str, date]],
     etf_scraper: ETFScraper,
@@ -126,15 +151,25 @@ def query_hist_ticker_dates(
     )
     def _query_holdings(ticker, query_date):
         holdings_df = etf_scraper.query_holdings(ticker, query_date)
+
+        if not query_date:
+            holdings_date = holdings_df["as_of_date"].iloc[0]
+        else:
+            holdings_date = query_date
+
         save_path = save_func(
-            holdings_df=holdings_df, ticker=ticker, query_date=query_date
+            holdings_df=holdings_df, ticker=ticker, holdings_date=holdings_date
         )
-        return save_path, len(holdings_df)
+        return save_path, holdings_date, len(holdings_df)
 
     def query_holdings(ticker, query_date):
         try:
-            save_path, n_holdings = _query_holdings(ticker, query_date)
-            return_rpt = {"save_path": save_path, "n_holdings": n_holdings}
+            save_path, holdings_date, n_holdings = _query_holdings(ticker, query_date)
+            return_rpt = {
+                "save_path": save_path,
+                "holdings_date": holdings_date,
+                "n_holdings": n_holdings,
+            }
         except Exception as e:
             return_rpt = {"error": format_exc(), "error_class": type(e).__name__}
         return return_rpt
@@ -143,34 +178,6 @@ def query_hist_ticker_dates(
         from_pool = p.starmap(query_holdings, query_ticker_dates)
 
     return dict(zip(query_ticker_dates, from_pool))
-
-
-def save_func(
-    holdings_df: pd.DataFrame,
-    ticker: str,
-    query_date: Union[date, None],
-    out_dir: str,
-    out_fmt: SaveFormat = SaveFormat.csv,
-) -> Path:
-    """Example function to pass to `query_range`. Saves output query date to
-    a file in out_dir (can also be local or a bucket on the cloud).
-
-    If query_date not given then will infer the holdings date from the returned data.
-
-    Args:
-    - out_fmt: determines the file format + extension used to save the data.
-    Valid values are eg "csv", "parquet", "pickle".
-    Uses Pandas to_{{out_fmt}} to save data and appends .{{out_fmt}} to the filename, eg
-    out_fmt="csv" will use df.to_csv and save to a file {ticker}_{date}.csv
-    """
-    if not query_date:
-        query_date = holdings_df["as_of_date"].iloc[0]
-
-    filename = holdings_filename(ticker, query_date, "." + out_fmt)
-    out_path = Path(out_dir).joinpath(filename)
-    logger.info(f"Saving holdings to {out_path}")
-    getattr(holdings_df, f"to_{out_fmt}")(out_path, index=False)
-    return out_path
 
 
 def format_hist_query_output(query_output) -> pd.DataFrame:
