@@ -77,7 +77,7 @@ def scrape_holdings(
         exchange,
     )
 
-    if not query_dates:
+    if not len(query_dates):
         params = {
             "start_date": start_date,
             "end_date": end_date,
@@ -108,5 +108,4 @@ def scrape_holdings(
         save_func=save_func_,
         num_threads=num_threads,
     )
-
-    query_rpt_fmt = format_hist_query_output(query_rpt)
+    return query_rpt

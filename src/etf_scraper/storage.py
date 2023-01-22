@@ -169,7 +169,7 @@ def save_func(
     filename = holdings_filename(ticker, query_date, "." + out_fmt)
     out_path = Path(out_dir).joinpath(filename)
     logger.info(f"Saving holdings to {out_path}")
-    getattr(holdings_df, f"to_{out_fmt}")(out_path)
+    getattr(holdings_df, f"to_{out_fmt}")(out_path, index=False)
     return out_path
 
 

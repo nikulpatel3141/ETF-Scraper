@@ -4,6 +4,12 @@ from argparse import ArgumentParser, BooleanOptionalAction
 import logging
 
 from etf_scraper.main import scrape_holdings
+from etf_scraper.storage import format_hist_query_output
+
+logging.basicConfig(
+    level=logging.WARNING,
+    format="[%(asctime)s] {%(filename)s:%(lineno)d} %(levelname)s - %(message)s",
+)
 
 logger = logging.getLogger(__name__)
 
@@ -14,7 +20,10 @@ def parse_args() -> dict:
         description="Script to query for historical/latest holdings for an input set of tickers",
     )
     parser.add_argument(
-        "--save_dir", type=str, help="Local directory/cloud bucket to store files"
+        "--save_dir",
+        type=str,
+        required=True,
+        help="Local directory/cloud bucket to store files",
     )
     parser.add_argument(
         "--start_date",
@@ -35,7 +44,9 @@ def parse_args() -> dict:
         choices=["csv", "parquet", "pickle"],
         help="Format to save as",
     )
-    parser.add_argument("--tickers", type=str, nargs="+", help="Tickers to parse")
+    parser.add_argument(
+        "--tickers", type=str, required=True, nargs="+", help="Tickers to parse"
+    )
     parser.add_argument(
         "--overwrite",
         action=BooleanOptionalAction,
@@ -66,12 +77,18 @@ def parse_args() -> dict:
         default=10,
         help="Number of threads to use for parallelising queries",
     )
+    parser.add_argument(
+        "--log_file",
+        type=str,
+        default="",
+        help="Optional path to output error logs",
+    )
     return vars(parser.parse_args())
 
 
-if __name__ == "__main__":
+def main():
     args = parse_args()
-    scrape_holdings(
+    query_rpt = scrape_holdings(
         tickers=args["tickers"],
         start_date=args["start_date"],
         end_date=args["end_date"],
@@ -79,7 +96,15 @@ if __name__ == "__main__":
         trading_days=args["trading_days"],
         overwrite=args["overwrite"],
         save_dir=args["save_dir"],
-        out_fmt=args["out_fmt"],
+        out_fmt=args["format"],
         num_threads=args["num_threads"],
         exchange=args["exchange"],
     )
+    if log_file := args["log_file"]:
+        logger.info(f"Saving logs to {log_file}")
+        query_rpt_fmt = format_hist_query_output(query_rpt)
+        query_rpt_fmt.to_csv(log_file)
+
+
+if __name__ == "__main__":
+    main()
