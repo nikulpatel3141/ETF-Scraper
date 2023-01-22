@@ -1,0 +1,7 @@
+# Exclude everything:
+*
+
+# Except our code + project config
+!pyproject.toml
+!src/etf_scraper
+!scripts

@@ -8,7 +8,7 @@ import logging
 from datetime import date, datetime
 from pathlib import Path
 from itertools import product
-from typing import Callable, List, Sequence, Union
+from typing import Any, Callable, Dict, List, Sequence, Union, Tuple
 from traceback import format_exc
 from multiprocessing.pool import ThreadPool
 
@@ -34,7 +34,7 @@ def holdings_filename(ticker: str, holdings_date: date, file_extension: str) -> 
     return f"{ticker}_{holdings_date.strftime(DATE_FMT)}{file_extension}"
 
 
-def parse_holdings_filename(filename: str):
+def parse_holdings_filename(filename: str) -> Tuple[str, date, str]:
     """Go from a filename output by `holdings_filename` to the ticker + date + extension."""
     base, ext = filename.rsplit(".", 1)
     ext_ = "." + ext
@@ -49,7 +49,7 @@ def list_unqueried_data(
     existing_files: list[str],
     expected_dates: List[date],
     expected_tickers: List[str],
-) -> List[date]:
+) -> List[Tuple[str, date]]:
     """Find the list of dates + tickers we are missing data for given an existing
     list of files. Expects filenames to be in the format returned by `holdings_filename`
 
@@ -61,18 +61,16 @@ def list_unqueried_data(
         ticker, date_, _ = parse_holdings_filename(Path(x).name)
         if (date_ in expected_dates) and (ticker in expected_tickers):
             missing_data.remove((ticker, date_))
-            # missing_data.append()
 
-    return missing_data
+    return list(missing_data)
 
 
-def query_range(
-    query_dates: Sequence[date],
-    query_tickers: Sequence[str],
+def query_hist_ticker_dates(
+    query_ticker_dates: Sequence[Tuple[str, date]],
     etf_scraper: ETFScraper,
-    save_func: Callable,
-    num_threads=10,
-):
+    save_func: Callable[[pd.DataFrame, str, date], Any],
+    num_threads: int = 10,
+) -> Dict[Tuple[str, date], dict]:
     """Query the given dates + tickers using the passed ETFScraper and save the return
     value of save_func + # of returned holdings in a dict. Will return error messages
     in a dict if unable to query.
@@ -109,27 +107,45 @@ def query_range(
             return_rpt = {"error": format_exc(), "error_class": type(e).__name__}
         return return_rpt
 
-    to_map = list(product(query_tickers, query_dates))
-
     with ThreadPool(num_threads) as p:
-        from_pool = p.starmap(query_holdings, to_map)
+        from_pool = p.starmap(query_holdings, query_ticker_dates)
 
-    return dict(zip(to_map, from_pool))
+    return dict(zip(query_ticker_dates, from_pool))
 
 
 def save_func(
-    holdings_df: pd.DataFrame, ticker: str, query_date: Union[date, None], out_dir: str
-):
+    holdings_df: pd.DataFrame,
+    ticker: str,
+    query_date: Union[date, None],
+    out_dir: str,
+    out_fmt: str = "csv",
+) -> Path:
     """Example function to pass to `query_range`. Saves output query date to
-    a csv in out_dir (can also be local or a bucket on the cloud).
+    a file in out_dir (can also be local or a bucket on the cloud).
 
     If query_date not given then will infer the holdings date from the returned data.
+
+    Args:
+    - out_fmt: determines the file format + extension used to save the data.
+    Valid values are eg "csv", "parquet", "pickle".
+    Uses Pandas to_{{out_fmt}} to save data and appends .{{out_fmt}} to the filename, eg
+    out_fmt="csv" will use df.to_csv and save to a file {ticker}_{date}.csv
     """
     if not query_date:
         query_date = holdings_df["as_of_date"].iloc[0]
 
-    filename = holdings_filename(ticker, query_date, ".csv")
+    filename = holdings_filename(ticker, query_date, "." + out_fmt)
     out_path = Path(out_dir).joinpath(filename)
     logger.info(f"Saving holdings to {out_path}")
-    holdings_df.to_csv(out_path)
+    getattr(holdings_df, f"to_{out_fmt}")(out_path)
     return out_path
+
+
+def format_hist_query_output(query_output) -> pd.DataFrame:
+    """Formats the output of `query_hist_ticker_dates` as a dataframe"""
+    # df =
+    return (
+        pd.DataFrame(query_output)
+        .T.rename_axis(index=["ticker", "query_date"])
+        .reset_index()
+    )

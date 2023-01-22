@@ -1,10 +1,8 @@
-FROM python:3.11
+FROM python:3.11-slim
 
 WORKDIR etf_scraper
 
 COPY . .
-
-RUN ls
 
 RUN pip install -e .
 
