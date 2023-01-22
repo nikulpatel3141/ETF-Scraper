@@ -72,10 +72,11 @@ def get_interval_query_dates(
     start_date: str,
     end_date: str,
     month_ends: bool = False,
-    trading_days=False,
-    exchange="NYSE",
+    trading_days: bool = False,
+    exchange: str = "NYSE",
 ) -> Sequence[date]:
-    """Return a list of days to query holdings data for.
+    """Return a list of days to query holdings data for. Expects date strings
+    parseable by pandas.
 
     Args:
     - month_ends: if True, then return only month end days within the specified range

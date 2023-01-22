@@ -21,11 +21,14 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+cloud = [
+    "gcsfs",
+    "fastapi",
+    "pydantic",
+    "uvicorn[standard]",
+]
 tests = [
     "pytest",
-]
-gcs = [
-    "gcsfs",
 ]
 
 [tool.setuptools.packages.find]

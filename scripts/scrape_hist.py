@@ -1,19 +1,9 @@
 """Script to query for historical/latest holdings for an input set of tickers"""
 
 from argparse import ArgumentParser, BooleanOptionalAction
-from functools import partial
 import logging
 
-from etf_scraper import ETFScraper
-from etf_scraper.storage import (
-    list_files,
-    list_unqueried_data,
-    query_hist_ticker_dates,
-    save_func,
-    format_hist_query_output,
-)
-from etf_scraper.utils import get_interval_query_dates
-
+from etf_scraper.main import scrape_holdings
 
 logger = logging.getLogger(__name__)
 
@@ -79,66 +69,17 @@ def parse_args() -> dict:
     return vars(parser.parse_args())
 
 
-def main():
-    args = parse_args()
-
-    if not args["start_date"]:
-        if args["end_date"]:
-            raise ValueError(
-                f"start_date missing, but end_date {args['end_date']} given"
-            )
-        elif args["overwrite"]:
-            raise ValueError(
-                f"Cannot use --overwrite without --start_date (we don't know what to overwrite)"
-            )
-
-        query_dates = [None]
-    else:
-        if not args["end_date"]:
-            logger.warning(
-                f"Only start date {args['start_date']} given but not an end date, so setting end_date={args['start_date']}"
-            )
-            end_date = args["start_date"]
-        else:
-            end_date = args["end_date"]
-
-        query_dates = get_interval_query_dates(
-            args["start_date"],
-            end_date,
-            args["month_ends"],
-            args["trading_days"],
-            args["exchange"],
-        )
-
-    if not query_dates:
-        params = ["start_date", "end_date", "month_ends", "trading_days"]
-        if args["trading_days"]:
-            params.append("exchange")
-        log_str = "\n".join([f"{k}: {args[k]}" for k in params])
-        logger.warning("There are no dates to query with parameters:\n " f"{log_str}")
-        return
-
-    if args["overwrite"]:
-        existing_files = []
-    else:
-        existing_files = list_files(args["save_dir"], "." + args["format"])
-
-    to_query = list_unqueried_data(
-        existing_files,
-        query_dates,
-        args["tickers"],
-    )
-    save_func_ = partial(save_func, out_dir=args["save_dir"], out_fmt=args["format"])
-
-    query_rpt = query_hist_ticker_dates(
-        query_ticker_dates=to_query,
-        etf_scraper=ETFScraper(),
-        save_func=save_func_,
-        num_threads=args["num_threads"],
-    )
-
-    query_rpt_fmt = format_hist_query_output(query_rpt)
-
-
 if __name__ == "__main__":
-    main()
+    args = parse_args()
+    scrape_holdings(
+        tickers=args["tickers"],
+        start_date=args["start_date"],
+        end_date=args["end_date"],
+        month_ends=args["month_ends"],
+        trading_days=args["trading_days"],
+        overwrite=args["overwrite"],
+        save_dir=args["save_dir"],
+        out_fmt=args["out_fmt"],
+        num_threads=args["num_threads"],
+        exchange=args["exchange"],
+    )

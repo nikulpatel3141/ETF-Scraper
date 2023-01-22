@@ -12,6 +12,7 @@ from itertools import product
 from typing import Any, Callable, Dict, List, Sequence, Union, Tuple
 from traceback import format_exc
 from multiprocessing.pool import ThreadPool
+from enum import Enum
 
 from tenacity import (
     retry,
@@ -24,11 +25,18 @@ import pandas as pd
 from pandas.io.common import is_fsspec_url
 
 from etf_scraper.base import InvalidParameterError
+from etf_scraper.utils import get_interval_query_dates
 from etf_scraper.api import ETFScraper
 
 DATE_FMT = "%Y_%m_%d"
 
 logger = logging.getLogger(__name__)
+
+
+class SaveFormat(str, Enum):
+    csv = "csv"
+    parquet = "parquet"
+    pickle = "pickle"
 
 
 def list_files(path: str, extension: str) -> List[str]:
@@ -70,9 +78,9 @@ def parse_holdings_filename(filename: str) -> Tuple[str, date, str]:
 
 
 def list_unqueried_data(
-    existing_files: list[str],
-    expected_dates: List[date],
-    expected_tickers: List[str],
+    existing_files: Sequence[str],
+    expected_dates: Sequence[date],
+    expected_tickers: Sequence[str],
 ) -> List[Tuple[str, date]]:
     """Find the list of dates + tickers we are missing data for given an existing
     list of files. Expects filenames to be in the format returned by `holdings_filename`
@@ -142,7 +150,7 @@ def save_func(
     ticker: str,
     query_date: Union[date, None],
     out_dir: str,
-    out_fmt: str = "csv",
+    out_fmt: SaveFormat = SaveFormat.csv,
 ) -> Path:
     """Example function to pass to `query_range`. Saves output query date to
     a file in out_dir (can also be local or a bucket on the cloud).
