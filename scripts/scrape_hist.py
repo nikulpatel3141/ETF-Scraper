@@ -1,6 +1,6 @@
 """Script to query for historical/latest holdings for an input set of tickers"""
-
 from argparse import ArgumentParser, BooleanOptionalAction
+import sys
 import logging
 
 from etf_scraper.main import scrape_holdings
@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 def parse_args() -> dict:
     parser = ArgumentParser(
-        prog="ETF Scraper",
+        prog=sys.argv[0],
         description="Script to query for historical/latest holdings for an input set of tickers",
     )
     parser.add_argument(

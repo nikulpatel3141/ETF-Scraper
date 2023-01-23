@@ -34,7 +34,79 @@ etf_scraper = ETFScraper()
 holdings_df = etf_scraper.query_holdings(fund_ticker, holdings_date)
 ```
 
-###
+### Command Line Usage
+
+The script `scripts/scrape_hist.py` allows you to scrape historical/latest fund holdings. See the parameters and examples below:
+
+#### Examples
+
+##### Scrape Monthly Historical ETF holdings
+
+Scrape for IVV (iShares S&P500 ETF) and IVW (iShares Russell 3000 ETF) month end holdings from 2010 and save to `/tmp/out` as csv files.
+
+```bash
+mkdir -p /tmp/out # make sure the directory exists
+
+python3 scripts/scrape_hist.py \
+  --start_date 2019-01-01 --end_date 2023-01-23 \
+  --tickers IVV IVW \
+  --save_dir /tmp/out \
+  --format csv \
+  --month_ends \
+  --trading_days \
+  --exchange NYSE # this is the default anyway
+
+ls /tmp/out # IVW_2022_12_30.csv IVW_2022_11_30.csv ...
+
+```
+
+Note: here we need to query for trading day month ends since iShares doesn't report holdings on non-trading days. This is different for Vanguard which report holdings using calendar end dates.
+
+##### Scrape Latest ETF holdings
+
+Scrape for latest SPY (SSGA S&P500 ETF) and XLF (Financial Select Sector SPDR Fund) holdings save to `/tmp/out` as parquet files.
+
+```bash
+mkdir -p /tmp/out
+
+python3 scripts/scrape_hist.py \
+  --tickers SPY XLF \
+  --save_dir /tmp/out \
+  --format parquet
+
+ls /tmp/out # SPY_2023_01_20.parquet XLF_2023_01_20.parquet
+```
+
+Note: here we don't pass start/end dates or an exchange since we are retrieving the latest holdings.
+
+#### Parameters
+
+```bash
+usage: scrape_hist.py [-h] --save_dir SAVE_DIR [--start_date START_DATE] [--end_date END_DATE] [--format {csv,parquet,pickle}] --tickers TICKERS [TICKERS ...] [--overwrite | --no-overwrite] [--month_ends | --no-month_ends] [--trading_days | --no-trading_days] [--exchange EXCHANGE] [--num_threads NUM_THREADS] [--log_file LOG_FILE]
+
+Script to query for historical/latest holdings for an input set of tickers
+
+options:
+  -h, --help            show this help message and exit
+  --save_dir SAVE_DIR   Local directory/cloud bucket to store files
+  --start_date START_DATE
+                        YYYY-MM-DD start date for historical scraping. Leave blank to query latest holdings.
+  --end_date END_DATE   See --start_date. If blank and --start_date given, then defaults to start_date. If --start_date is blank then --end_date must be blank too.
+  --format {csv,parquet,pickle}
+                        Format to save as
+  --tickers TICKERS [TICKERS ...]
+                        Tickers to parse
+  --overwrite, --no-overwrite
+                        If set then query all data requested, otherwise only query files missing from save_dir. Cannot be used with start + end dates (we don't know the latest holdings dates without querying).
+  --month_ends, --no-month_ends
+                        If set then only query for month end dates
+  --trading_days, --no-trading_days
+                        If set then only query for trading days. If --month_ends is also passed, then query only for trading month ends
+  --exchange EXCHANGE   Trading calendar schedule to use if --trading_days is set
+  --num_threads NUM_THREADS
+                        Number of threads to use for parallelising queries
+  --log_file LOG_FILE   Optional path to output error logs
+```
 
 ### Data Availability
 
