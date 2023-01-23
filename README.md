@@ -21,7 +21,7 @@ pip install .
 
 ## Usage
 
-### Basic Python Usage
+### Python
 
 ```python
 from etf_scraper import ETFScraper
@@ -34,13 +34,11 @@ etf_scraper = ETFScraper()
 holdings_df = etf_scraper.query_holdings(fund_ticker, holdings_date)
 ```
 
-### Command Line Usage
+### Command Line
 
 The script `scripts/scrape_hist.py` allows you to scrape historical/latest fund holdings. See the parameters and examples below:
 
-#### Examples
-
-##### Scrape Monthly Historical ETF holdings
+#### Scrape Monthly Historical ETF holdings
 
 Scrape for IVV (iShares S&P500 ETF) and IVW (iShares Russell 3000 ETF) month end holdings from 2010 and save to `/tmp/out` as csv files.
 
@@ -62,7 +60,13 @@ ls /tmp/out # IVW_2022_12_30.csv IVW_2022_11_30.csv ...
 
 Note: here we need to query for trading day month ends since iShares doesn't report holdings on non-trading days. This is different for Vanguard which report holdings using calendar end dates.
 
-##### Scrape Latest ETF holdings
+#### Scrape Daily Historical ETF holdings
+
+The script will scrape daily dates in the given range by default, so remove the `--month_ends` flag (or pass `--no_month_ends`).
+
+As of writing this is only available for iShares ETFs.
+
+#### Scrape Latest ETF holdings
 
 Scrape for latest SPY (SSGA S&P500 ETF) and XLF (Financial Select Sector SPDR Fund) holdings save to `/tmp/out` as parquet files.
 
@@ -81,7 +85,7 @@ Note: here we don't pass start/end dates or an exchange since we are retrieving 
 
 #### Parameters
 
-```bash
+```
 usage: scrape_hist.py [-h] --save_dir SAVE_DIR [--start_date START_DATE] [--end_date END_DATE] [--format {csv,parquet,pickle}] --tickers TICKERS [TICKERS ...] [--overwrite | --no-overwrite] [--month_ends | --no-month_ends] [--trading_days | --no-trading_days] [--exchange EXCHANGE] [--num_threads NUM_THREADS] [--log_file LOG_FILE]
 
 Script to query for historical/latest holdings for an input set of tickers
