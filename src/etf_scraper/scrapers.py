@@ -1,5 +1,5 @@
 import logging
-from typing import Union
+from typing import Union, List
 from urllib.parse import urljoin
 from io import StringIO
 from datetime import date, datetime
@@ -60,7 +60,7 @@ class ISharesListings(ProviderListings):
     exp_cols = ["productPageUrl", "localExchangeTicker"]  # bare minimum to be returned
 
     holding_col_mapping = {
-        "Ticker": "ticker",
+        "Ticker": "ticker",  # for equity funds
         "Name": "name",
         "Sector": "sector",
         "Asset Class": "asset_class",
@@ -74,10 +74,53 @@ class ISharesListings(ProviderListings):
         "Currency": "currency",
         "FX Rate": "fx_rate",
         "Market Currency": "market_currency",
+        "Par Value": "par_value",  # for bond funds
+        "CUSIP": "cusip",
+        "ISIN": "isin",
+        "SEDOL": "sedol",
+        "Duration": "duration",
+        "YTM (%)": "yield_to_maturity",
+        "Maturity": "maturity",
+        "Coupon (%)": "coupon",
+        "Mod. Duration": "modified_duration",
+        "Yield to Call (%)": "yield_to_call",
+        "Yield to Worst (%)": "yield_to_worst",
+        "Real Duration": "real_duration",
+        "Real YTM (%)": "real_ytm",
+        "Accrual Date": "accrual_date",
+        "Effective Date": "effective_date",
     }
-    exp_holding_cols = ["Ticker", "Shares", "Market Value"]
+
+    holdings_string_cols = ["ticker", "cusip", "isin", "sedol"]
+    holdings_numeric_cols = [
+        "amount",
+        "weight",
+        "market_value",
+        "price",
+        "notional_value",
+        "duration",
+        "yield_to_maturity",
+        "coupon",
+        "modified_duration",
+        "yield_to_call",
+        "yield_to_worst",
+        "real_duration",
+        "real_ytm",
+    ]
+    holdings_date_cols = ["accrual_date", "effective_date"]
 
     _fund_type_map = {"etf": "ETF", "mutualfund": "MF"}
+
+    @classmethod
+    def exp_holding_cols(cls, asset_class: str) -> List[str]:
+        if asset_class in ("Equity", "Real Estate", "Commodity"):
+            return ["Ticker", "Shares", "Market Value"]
+        elif asset_class == "Fixed Income":
+            return ["CUSIP", "Market Value"]
+        else:
+            raise NotImplementedError(
+                f"iShares holdings scraper not implemented for {asset_class}"
+            )
 
     @classmethod
     def retrieve_listings(cls):
@@ -122,7 +165,11 @@ class ISharesListings(ProviderListings):
         return resp_df_.reset_index(drop=True)
 
     @classmethod
-    def _parse_holdings_resp(cls, resp_content):
+    def _parse_holdings_date(cls, date_str: str) -> date:
+        return datetime.strptime(date_str, "%b %d, %Y").date()  # eg "Jan 03, 2022"
+
+    @classmethod
+    def _parse_holdings_resp(cls, resp_content, asset_class="Equity"):
         header_rows = 9
         raw_data = StringIO(resp_content)
         summary_data = [raw_data.readline().rstrip("\n") for _ in range(header_rows)]
@@ -148,9 +195,7 @@ class ISharesListings(ProviderListings):
         logger.debug(f"Found reported holdings date string {as_of_date}")
         logger.debug("Attempting to parse holdings data")
 
-        as_of_date = datetime.strptime(
-            as_of_date, "%b %d, %Y"
-        ).date()  # eg "Jan 03, 2022"
+        as_of_date = cls._parse_holdings_date(as_of_date)
 
         if summary_data[-1] != "\xa0":
             logger.warning(
@@ -179,20 +224,40 @@ class ISharesListings(ProviderListings):
                 na_values="-",
             )
 
-        check_missing_cols(cls.exp_holding_cols, holdings_df.columns, raise_error=True)
-
+        check_missing_cols(
+            cls.exp_holding_cols(asset_class), holdings_df.columns, raise_error=True
+        )
         holdings_df = holdings_df.rename(columns=cls.holding_col_mapping)
+
+        def _parse_holdings_date_(x):
+            try:
+                return cls._parse_holdings_date(x)
+            except:
+                return pd.NaT
+
+        for col in holdings_df:
+            if col in cls.holdings_date_cols:
+                holdings_df.loc[:, col] = holdings_df[col].apply(_parse_holdings_date_)
+            elif col in cls.holdings_string_cols:
+                holdings_df.loc[:, col] = holdings_df[col].astype(str)
+
         holdings_df = holdings_df[~holdings_df["weight"].isna()]
 
-        strip_str_cols(holdings_df, ["ticker"])
+        strip_str_cols(
+            holdings_df, [k for k in cls.holdings_string_cols if k in holdings_df]
+        )
         set_numeric_cols(
-            holdings_df, ["amount", "weight", "market_value", "price", "notional_value"]
+            holdings_df, [k for k in cls.holdings_numeric_cols if k in holdings_df]
         )
         return holdings_df, as_of_date
 
     @classmethod
     def retrieve_holdings(
-        cls, ticker: str, product_url: str, holdings_date: Union[date, None]
+        cls,
+        ticker: str,
+        product_url: str,
+        holdings_date: Union[date, None],
+        asset_class: str = "Equity",
     ):
         """Query for IShares product holdings
         Args:
@@ -215,7 +280,7 @@ class ISharesListings(ProviderListings):
         resp.raise_for_status()
 
         holdings_df, as_of_date = cls._parse_holdings_resp(
-            resp.content.decode(encoding="UTF-8-SIG")
+            resp.content.decode(encoding="UTF-8-SIG"), asset_class
         )
 
         if holdings_date:
@@ -231,7 +296,10 @@ class ISharesListings(ProviderListings):
     def _retrieve_holdings(cls, sec_listing: SecurityListing, holdings_date: date):
         _check_exp_provider(sec_listing.provider, cls.provider, cls.__name__)
         return cls.retrieve_holdings(
-            sec_listing.ticker, sec_listing.product_url, holdings_date
+            sec_listing.ticker,
+            sec_listing.product_url,
+            holdings_date,
+            sec_listing.asset_class,
         )
 
 
