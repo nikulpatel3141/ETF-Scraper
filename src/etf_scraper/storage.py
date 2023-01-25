@@ -103,7 +103,7 @@ def default_save_func(
     holdings_date: date,
     out_dir: str,
     out_fmt: SaveFormat = SaveFormat.csv,
-) -> Path:
+) -> str:
     """Example function to pass to `query_range`. Saves output query date to
     a file in out_dir (can also be local or a bucket on the cloud).
 
@@ -116,7 +116,7 @@ def default_save_func(
     out_fmt="csv" will use df.to_csv and save to a file {ticker}_{date}.csv
     """
     filename = holdings_filename(ticker, holdings_date, "." + out_fmt)
-    out_path = Path(out_dir).joinpath(filename)
+    out_path = os.path.join(out_dir, filename)
     logger.info(f"Saving holdings to {out_path}")
     getattr(holdings_df, f"to_{out_fmt}")(out_path, index=False)
     return out_path

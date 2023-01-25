@@ -152,6 +152,10 @@ The status badges at the top of the page are from worklows running daily to quer
 
 There are some tests implemented in `src/test` to see if we correctly parse providers responses for holdings. This is definitely an area of improvement, however I'm currently not sure how often providers will change their APIs for retrieving data. Every time they do that we'll likely have to rewrite the tests.
 
+## Related Projects
+
+For scraping iShares ETFs + AWS integration: https://github.com/talsan/ishares
+
 ## Disclaimer
 
 I do not take any responsibility for any (mis)use of this library and do not intend to infringe any fund provider's terms and conditions.
