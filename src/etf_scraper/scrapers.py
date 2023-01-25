@@ -145,8 +145,8 @@ class ISharesListings(ProviderListings):
                 f"Found '-' as holdings date -> no data returned"
             )
 
-        logger.info(f"Found reported holdings date string {as_of_date}")
-        logger.info("Attempting to parse holdings data")
+        logger.debug(f"Found reported holdings date string {as_of_date}")
+        logger.debug("Attempting to parse holdings data")
 
         as_of_date = datetime.strptime(
             as_of_date, "%b %d, %Y"
@@ -208,7 +208,7 @@ class ISharesListings(ProviderListings):
         if holdings_date:
             req_params = {"asOfDate": holdings_date.strftime("%Y%m%d"), **req_params}
 
-        logger.info(
+        logger.debug(
             f"Querying {cls.provider} for {ticker} holdings as of {holdings_date}"
         )
         resp = requests.get(endpoint, params=req_params)
@@ -411,7 +411,7 @@ class SSGAListings(ProviderListings):
             resp.content
         )
 
-        logger.info(f"Found response as of date {resp_holdings_date} for {ticker}")
+        logger.debug(f"Found response as of date {resp_holdings_date} for {ticker}")
 
         if ticker.upper() != resp_ticker.upper():
             raise ValueError(
@@ -579,7 +579,7 @@ class VanguardListings(ProviderListings):
         if not holdings_date:
             date_now = datetime.now().date().replace(day=1)
             holdings_date = date_now - relativedelta(days=1)
-            logger.info(
+            logger.debug(
                 f"No holdings date given, defaulting to the previous month end {holdings_date}"
             )
 

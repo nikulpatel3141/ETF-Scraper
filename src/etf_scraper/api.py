@@ -33,7 +33,7 @@ def query_listings(providers: Union[None, List[Provider]] = None) -> pd.DataFram
     """Query provider listings for the providers given (or all if none given)
     and return as a df
     """
-    logger.info("Querying for provider listings")
+    logger.debug("Querying for provider listings")
 
     if not providers:
         providers = list(SCRAPERS)
@@ -109,7 +109,7 @@ class ETFScraper:
         sec_listing = self._find_sec_listing(ticker)
 
         date_log_str = "latest" if not holdings_date else holdings_date
-        logger.info(
+        logger.debug(
             f"Querying for {sec_listing.ticker} holdings as of {date_log_str}"
             f" from {sec_listing.provider}"
         )

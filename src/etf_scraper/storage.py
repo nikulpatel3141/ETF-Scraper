@@ -123,7 +123,7 @@ def default_save_func(
 
 
 def query_hist_ticker_dates(
-    query_ticker_dates: Sequence[Tuple[str, date]],
+    query_ticker_dates: Sequence[Tuple[str, date | None]],
     etf_scraper: ETFScraper,
     save_func: Callable[[pd.DataFrame, str, date], Any],
     num_threads: int = 10,

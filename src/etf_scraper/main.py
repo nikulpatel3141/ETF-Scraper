@@ -1,6 +1,7 @@
+import warnings
 from datetime import date
 from functools import partial
-from typing import List, Sequence
+from typing import Callable, List, Sequence, Any
 import logging
 
 from etf_scraper import ETFScraper
@@ -14,8 +15,22 @@ from etf_scraper.storage import (
 )
 from etf_scraper.utils import get_interval_query_dates
 
+warnings.simplefilter(action="ignore", category=FutureWarning)
 
 logger = logging.getLogger(__name__)
+
+
+def _log_exit(start_date, end_date, month_ends, trading_days, exchange=None):
+    params = {
+        "start_date": start_date,
+        "end_date": end_date,
+        "month_ends": month_ends,
+        "trading_days": trading_days,
+    }
+    if trading_days:
+        params["exchange"] = exchange
+    log_str = "\n".join([f"{k}: {v}" for k, v in params.items()])
+    logger.warning("There are no dates to query with parameters:\n " f"{log_str}")
 
 
 def parse_query_date_range(
@@ -66,8 +81,9 @@ def scrape_holdings(
     save_dir: str,
     out_fmt: SaveFormat,
     num_threads: int = 10,
-    exchange="NYSE",
+    exchange: str = "NYSE",
 ):
+    etf_scraper = ETFScraper()
     query_dates = parse_query_date_range(
         start_date,
         end_date,
@@ -78,33 +94,40 @@ def scrape_holdings(
     )
 
     if not len(query_dates):
-        params = {
-            "start_date": start_date,
-            "end_date": end_date,
-            "month_ends": month_ends,
-            "trading_days": trading_days,
-        }
-        if trading_days:
-            params["exchange"] = exchange
-        log_str = "\n".join([f"{k}: {v}" for k, v in params.items()])
-        logger.warning("There are no dates to query with parameters:\n " f"{log_str}")
+        _log_exit(start_date, end_date, month_ends, trading_days, exchange)
         return
 
     if overwrite:
+        logger.warning(f"Overwriting existing data (if any) at {save_dir}")
         existing_files = []
     else:
         existing_files = list_files(save_dir, "." + out_fmt)
 
-    to_query = list_unqueried_data(
-        existing_files,
-        query_dates,
-        tickers,
-    )
+    if list(query_dates) != [None]:
+        to_query = list_unqueried_data(
+            existing_files,
+            query_dates,
+            tickers,
+        )
+        unique_tickers = {x[0] for x in to_query}
+        if to_query:
+            logger.info(
+                f"Querying {len(to_query)} holdings files for "
+                f"{len(query_dates)} dates and {len(unique_tickers)} tickers"
+            )
+        else:
+            logger.info(
+                f"Nothing to query (the requested files may already exist at {save_dir})"
+            )
+    else:
+        logger.info(f"Querying latest holdings for {len(tickers)} ticker(s)")
+        to_query = [(ticker, None) for ticker in tickers]
+
     save_func_ = partial(default_save_func, out_dir=save_dir, out_fmt=out_fmt)
 
     query_rpt = query_hist_ticker_dates(
         query_ticker_dates=to_query,
-        etf_scraper=ETFScraper(),
+        etf_scraper=etf_scraper,
         save_func=save_func_,
         num_threads=num_threads,
     )

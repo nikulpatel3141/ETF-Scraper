@@ -7,8 +7,8 @@ from etf_scraper.main import scrape_holdings
 from etf_scraper.storage import format_hist_query_output
 
 logging.basicConfig(
-    level=logging.WARNING,
-    format="[%(asctime)s] {%(filename)s:%(lineno)d} %(levelname)s - %(message)s",
+    level=logging.INFO,
+    format="[%(asctime)s] [%(filename)16s:%(lineno)4d:%(levelname)8s] - %(message)s",
 )
 
 logger = logging.getLogger(__name__)
