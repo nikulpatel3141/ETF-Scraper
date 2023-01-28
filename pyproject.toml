@@ -14,8 +14,8 @@ classifiers = [
 dependencies = [
     "requests",
     "tenacity",
-    "numpy",
     "pandas>=1.5",
+    "numpy",
     "pandas_market_calendars",
     "openpyxl",
 ]
@@ -23,9 +23,6 @@ dependencies = [
 [project.optional-dependencies]
 cloud = [
     "gcsfs",
-    "fastapi",
-    "pydantic",
-    "uvicorn[standard]",
 ]
 tests = [
     "pytest",

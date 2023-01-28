@@ -4,6 +4,8 @@ WORKDIR etf_scraper
 
 COPY . .
 
-RUN pip install --no-cache-dir .
+RUN chmod -R +x scripts/ gcp/
 
-CMD ['python', 'scripts/scrape_etf.py']
+RUN pip install --no-cache-dir .[cloud]
+
+CMD ["python", "scripts/scrape_etf.py"]
