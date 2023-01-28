@@ -73,7 +73,7 @@ def get_ticker_block(
         logger.info(f"Only one cloud run task so using all tickers")
         return tickers
 
-    block_size = np.ceil(len(tickers) / int(num_tasks))
+    block_size = int(np.ceil(len(tickers) / int(num_tasks)))
     return tickers[block_size * task_index : block_size * (task_index + 1)]
 
 
