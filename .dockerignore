@@ -5,3 +5,4 @@
 !pyproject.toml
 !src/etf_scraper
 !scripts
+!gcp

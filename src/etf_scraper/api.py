@@ -106,6 +106,9 @@ class ETFScraper:
         if holdings_date and isinstance(holdings_date, str):
             holdings_date = pd.to_datetime(holdings_date).date()
 
+        if not ticker:
+            raise ValueError("Need to pass a ticker to scrape it")
+
         sec_listing = self._find_sec_listing(ticker)
 
         date_log_str = "latest" if not holdings_date else holdings_date

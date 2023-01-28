@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 """Script to run as a `Google Cloud Run Job`. Expects all parameters to be passed as env vars
 since this is how Cloud Run Jobs accept parameters
 
@@ -17,7 +19,6 @@ gcloud beta run jobs create job-scraper \
     --region REGION
 ```
 """
-from distutils.log import info
 import os
 import logging
 from typing import Sequence
@@ -45,7 +46,7 @@ NUM_THREADS = int(os.getenv("NUM_THREADS", 10))
 
 TASK_COUNT = int(os.getenv("CLOUD_RUN_TASK_COUNT", 1))
 TASK_INDEX = int(os.getenv("CLOUD_RUN_TASK_INDEX", -1))
-TASK_ATTEMPT = int(os.getenv("CLOUD_RUN_TASK_ATTEMPT"))
+TASK_ATTEMPT = int(os.getenv("CLOUD_RUN_TASK_ATTEMPT", 0))
 
 logger = logging.getLogger(__name__)
 
@@ -62,8 +63,8 @@ def get_ticker_block(
         logger.info(f"No tickers found at {ticker_file}, exiting")
         return []
 
-    if task_index == -1:
-        logger.info(f"No CLOUD_RUN_TASK_INDEX env var set so using all tickers")
+    if num_tasks == 1:
+        logger.info(f"Only one cloud run task so using all tickers")
         return tickers
 
     block_size = np.ceil(len(tickers) / int(num_tasks))
