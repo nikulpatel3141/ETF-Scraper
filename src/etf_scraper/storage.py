@@ -144,7 +144,7 @@ def query_hist_ticker_dates(
     # FIXME: put these retry parameters in a comfig file
     @retry(
         reraise=True,
-        retry=retry_if_not_exception_type(InvalidParameterError),
+        retry=retry_if_not_exception_type([InvalidParameterError, ImportError]),
         wait=wait_random_exponential(multiplier=1, max=60),
         stop=stop_after_attempt(3),
         before_sleep=before_sleep_log(logger, logging.INFO),

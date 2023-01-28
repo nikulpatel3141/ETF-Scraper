@@ -23,6 +23,7 @@ dependencies = [
 [project.optional-dependencies]
 cloud = [
     "gcsfs",
+    "fastparquet",
 ]
 tests = [
     "pytest",

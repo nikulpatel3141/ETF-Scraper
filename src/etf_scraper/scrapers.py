@@ -237,7 +237,8 @@ class ISharesListings(ProviderListings):
 
         for col in holdings_df:
             if col in cls.holdings_date_cols:
-                holdings_df.loc[:, col] = holdings_df[col].apply(_parse_holdings_date_)
+                parsed_dates = holdings_df[col].apply(_parse_holdings_date_)
+                holdings_df.loc[:, col] = pd.to_datetime(parsed_dates)
             elif col in cls.holdings_string_cols:
                 holdings_df.loc[:, col] = holdings_df[col].astype(str)
 
@@ -289,7 +290,7 @@ class ISharesListings(ProviderListings):
             )
 
         holdings_df.loc[:, "fund_ticker"] = ticker
-        holdings_df.loc[:, "as_of_date"] = as_of_date
+        holdings_df.loc[:, "as_of_date"] = pd.to_datetime(as_of_date)
         return holdings_df
 
     @classmethod
@@ -487,7 +488,7 @@ class SSGAListings(ProviderListings):
             )
 
         holdings_df.loc[:, "fund_ticker"] = ticker
-        holdings_df.loc[:, "as_of_date"] = resp_holdings_date
+        holdings_df.loc[:, "as_of_date"] = pd.to_datetime(resp_holdings_date)
         return holdings_df
 
     @classmethod
