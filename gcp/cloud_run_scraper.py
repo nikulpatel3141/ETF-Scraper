@@ -45,8 +45,14 @@ EXCHANGE = os.getenv("EXCHANGE", "NYSE")
 NUM_THREADS = int(os.getenv("NUM_THREADS", 10))
 
 TASK_COUNT = int(os.getenv("CLOUD_RUN_TASK_COUNT", 1))
-TASK_INDEX = int(os.getenv("CLOUD_RUN_TASK_INDEX", -1))
+TASK_INDEX = int(os.getenv("CLOUD_RUN_TASK_INDEX", 0))
 TASK_ATTEMPT = int(os.getenv("CLOUD_RUN_TASK_ATTEMPT", 0))
+
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="[%(asctime)s] [%(filename)16s:%(lineno)4d:%(levelname)8s] - %(message)s",
+)
 
 logger = logging.getLogger(__name__)
 
@@ -73,12 +79,15 @@ def get_ticker_block(
 
 def main():
     logger.info(
-        f"Starting attempt {TASK_ATTEMPT} fors task {TASK_INDEX} out of {TASK_COUNT}"
+        f"Starting attempt {TASK_ATTEMPT} for task {TASK_INDEX} out of {TASK_COUNT}"
     )
 
     if not TICKER_FILE:
-        raise RuntimeError(
-            f"No TICKER_FILE env var set, can't retrieve tickers to query"
+        raise ValueError(f"No TICKER_FILE env var set, can't retrieve tickers to query")
+
+    if not SAVE_DIR:
+        raise ValueError(
+            f"No SAVE_DIR env var set, don't know where to save the output"
         )
 
     tickers_to_query = get_ticker_block(TICKER_FILE, TASK_INDEX, TASK_COUNT)
@@ -99,7 +108,7 @@ def main():
         NUM_THREADS,
         EXCHANGE,
     )
-    num_scraped = [1 for k in out.values() if "error" not in k]
+    num_scraped = len([1 for k in out.values() if "error" not in k])
     logger.info(f"Scraped {num_scraped} holdings")
 
 
