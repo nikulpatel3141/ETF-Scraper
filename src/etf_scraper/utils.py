@@ -1,12 +1,21 @@
 from datetime import date
-import logging
 from typing import Sequence
+import logging
+import os
 
 import pandas as pd
+import numpy as np
 from pandas.tseries.offsets import BDay
 
 
 logger = logging.getLogger(__name__)
+
+
+def parse_bool_env(env_var: str) -> bool:
+    """Returns True if the environment variable env_var is set (up to upper/lower case)
+    to one of "true", "1" or "t" , otherwise returns False.
+    """
+    return os.getenv(env_var, "False").lower() in ("true", "1", "t")
 
 
 def check_missing_cols(
@@ -100,3 +109,17 @@ def get_interval_query_dates(
     month_end_trd_days = day_series.groupby(pd.Grouper(freq="M")).last()
     month_end_trd_days_ = pd.Series(month_end_trd_days, index=month_end_trd_days)
     return month_end_trd_days_.loc[start_date:end_date].index.date
+
+
+def get_list_chunk(list_: list[str], task_index: int, num_tasks: int) -> list[str]:
+    """Split the given list into into num_tasks blocks and returns the
+    block at task_index.
+    """
+    if len(list_) == 0:
+        return []
+
+    if num_tasks == 1:
+        return list_
+
+    block_size = int(np.ceil(len(list_) / int(num_tasks)))
+    return list_[block_size * task_index : block_size * (task_index + 1)]

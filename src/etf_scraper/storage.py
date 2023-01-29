@@ -9,7 +9,7 @@ import os
 from datetime import date, datetime
 from pathlib import Path
 from itertools import product
-from typing import Any, Callable, Dict, List, Sequence, Union, Tuple
+from typing import Any, Callable, Dict, List, Sequence, Tuple
 from traceback import format_exc
 from multiprocessing.pool import ThreadPool
 from enum import Enum
@@ -25,7 +25,6 @@ import pandas as pd
 from pandas.io.common import is_fsspec_url
 
 from etf_scraper.base import InvalidParameterError
-from etf_scraper.utils import get_interval_query_dates
 from etf_scraper.api import ETFScraper
 
 DATE_FMT = "%Y_%m_%d"
@@ -103,19 +102,30 @@ def default_save_func(
     holdings_date: date,
     out_dir: str,
     out_fmt: SaveFormat = SaveFormat.csv,
-) -> str:
-    """Example function to pass to `query_range`. Saves output query date to
-    a file in out_dir (can also be local or a bucket on the cloud).
+    existing_filenames: Sequence[str] = (),
+) -> str | None:
+    """Example function to pass to `query_range`. Saves output data to
+    a file in out_dir (can be any filesystem supported by Pandas, eg local or
+    a bucket on the cloud).
 
-    If query_date not given then will infer the holdings date from the returned data.
+    You may pass a list of existing files to avoid unnecessary writes, eg when querying
+    latest holdings data which hasn't updated since the initial write. This is useful
+    eg in cloud scenarios to avoid incurring write costs.
 
     Args:
     - out_fmt: determines the file format + extension used to save the data.
     Valid values are eg "csv", "parquet", "pickle".
     Uses Pandas to_{{out_fmt}} to save data and appends .{{out_fmt}} to the filename, eg
     out_fmt="csv" will use df.to_csv and save to a file {ticker}_{date}.csv
+    - existing_filenames: Don't write if the target filename is in this list of
+    existing filenames. If this behaviour is not desired, then pass existing_filenames = []
     """
     filename = holdings_filename(ticker, holdings_date, "." + out_fmt)
+
+    if filename in existing_filenames:
+        logger.info(f"File {filename} already exists, not saving again.")
+        return None
+
     out_path = os.path.join(out_dir, filename)
     logger.info(f"Saving holdings to {out_path}")
     getattr(holdings_df, f"to_{out_fmt}")(out_path, index=False)
@@ -182,9 +192,11 @@ def query_hist_ticker_dates(
 
 def format_hist_query_output(query_output) -> pd.DataFrame:
     """Formats the output of `query_hist_ticker_dates` as a dataframe"""
-    # df =
-    return (
+    df = (
         pd.DataFrame(query_output)
         .T.rename_axis(index=["ticker", "query_date"])
         .reset_index()
     )
+    for col in ["query_date", "holdings_date"]:
+        df[:, col] = pd.to_datetime(df[col], errors="coerce")
+    return df

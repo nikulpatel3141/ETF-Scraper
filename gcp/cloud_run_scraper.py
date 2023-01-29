@@ -21,12 +21,12 @@ gcloud beta run jobs create job-scraper \
 """
 import os
 import logging
-from typing import Sequence
 
 import pandas as pd
-import numpy as np
 
 from etf_scraper.main import scrape_holdings
+from etf_scraper.utils import parse_bool_env, get_list_chunk
+from etf_scraper.storage import format_hist_query_output
 
 # save parameters
 TICKER_FILE = os.getenv("TICKER_FILE")
@@ -36,10 +36,13 @@ SAVE_FMT = os.getenv("SAVE_FMT", "parquet")
 # query parameters
 START_DATE = os.getenv("START_DATE", "")
 END_DATE = os.getenv("END_DATE", "")
-MONTH_ENDS = bool(os.getenv("MONTH_ENDS", False))  # True if set, otherwise False
-TRADING_DAYS = bool(os.getenv("TRADING_DAYS", False))
-OVERWRITE = bool(os.getenv("OVERWRITE", False))
+MONTH_ENDS = parse_bool_env("MONTH_ENDS")  # False by default
+TRADING_DAYS = parse_bool_env("TRADING_DAYS")
+OVERWRITE = parse_bool_env("OVERWRITE")
 EXCHANGE = os.getenv("EXCHANGE", "NYSE")
+
+# save logs if location given
+LOG_DIR = os.getenv("LOG_DIR", None)
 
 # task parameters
 NUM_THREADS = int(os.getenv("NUM_THREADS", 10))
@@ -47,6 +50,9 @@ NUM_THREADS = int(os.getenv("NUM_THREADS", 10))
 TASK_COUNT = int(os.getenv("CLOUD_RUN_TASK_COUNT", 1))
 TASK_INDEX = int(os.getenv("CLOUD_RUN_TASK_INDEX", 0))
 TASK_ATTEMPT = int(os.getenv("CLOUD_RUN_TASK_ATTEMPT", 0))
+
+# hardcode to parquet for conveniences
+LOGFILE = f"etf_scraper_log_{TASK_INDEX}_{TASK_COUNT}.parquet"
 
 
 logging.basicConfig(
@@ -57,26 +63,6 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-def get_ticker_block(
-    ticker_file: str, task_index: int, num_tasks: int
-) -> Sequence[str]:
-    """Read the ticker file, split into NUM_TASKS blocks and returns the
-    block at task_index. If None given then returns all tickers
-    """
-    tickers = pd.read_csv(ticker_file, header=None).to_numpy().reshape(-1)
-
-    if len(tickers) == 0:
-        logger.info(f"No tickers found at {ticker_file}, exiting")
-        return []
-
-    if num_tasks == 1:
-        logger.info(f"Only one cloud run task so using all tickers")
-        return tickers
-
-    block_size = int(np.ceil(len(tickers) / int(num_tasks)))
-    return tickers[block_size * task_index : block_size * (task_index + 1)]
-
-
 def main():
     logger.info(
         f"Starting attempt {TASK_ATTEMPT} for task {TASK_INDEX} out of {TASK_COUNT}"
@@ -85,12 +71,16 @@ def main():
     if not TICKER_FILE:
         raise ValueError(f"No TICKER_FILE env var set, can't retrieve tickers to query")
 
+    tickers = pd.read_csv(TICKER_FILE, header=None).to_numpy().reshape(-1)
+    tickers_to_query = get_list_chunk(tickers, TASK_INDEX, TASK_COUNT)
+
+    if len(tickers_to_query) == 0:
+        logger.info(f"No tickers to query, exiting")
+
     if not SAVE_DIR:
         raise ValueError(
             f"No SAVE_DIR env var set, don't know where to save the output"
         )
-
-    tickers_to_query = get_ticker_block(TICKER_FILE, TASK_INDEX, TASK_COUNT)
 
     if not len(tickers_to_query):
         logger.info(f"No tickers to query")
@@ -110,6 +100,11 @@ def main():
     )
     num_scraped = len([1 for k in out.values() if "error" not in k])
     logger.info(f"Scraped {num_scraped} holdings")
+
+    if LOG_DIR:
+        logfile_path = os.path.join(LOG_DIR, LOGFILE)
+        logger.info(f"Saving scraping logs to {logfile_path}")
+        format_hist_query_output(out).to_parquet(logfile_path)
 
 
 if __name__ == "__main__":

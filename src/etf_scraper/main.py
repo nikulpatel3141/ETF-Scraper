@@ -1,7 +1,8 @@
+from pathlib import Path
 import warnings
 from datetime import date
 from functools import partial
-from typing import Callable, List, Sequence, Any
+from typing import List, Sequence
 import logging
 
 from etf_scraper import ETFScraper
@@ -10,7 +11,6 @@ from etf_scraper.storage import (
     list_unqueried_data,
     query_hist_ticker_dates,
     default_save_func,
-    format_hist_query_output,
     SaveFormat,
 )
 from etf_scraper.utils import get_interval_query_dates
@@ -102,6 +102,7 @@ def scrape_holdings(
         existing_files = []
     else:
         existing_files = list_files(save_dir, "." + out_fmt)
+        logger.info(f"Found {len(existing_files)} .{out_fmt} files in {save_dir}")
 
     if list(query_dates) != [None]:
         to_query = list_unqueried_data(
@@ -123,8 +124,16 @@ def scrape_holdings(
         logger.info(f"Querying latest holdings for {len(tickers)} ticker(s)")
         to_query = [(ticker, None) for ticker in tickers]
 
-    save_func_ = partial(default_save_func, out_dir=save_dir, out_fmt=out_fmt)
-
+    # empty if overwrite = False
+    existing_filenames = [
+        Path(x).name for x in existing_files
+    ]  # FIXME: repetition from list_unqueried_data
+    save_func_ = partial(
+        default_save_func,
+        out_dir=save_dir,
+        out_fmt=out_fmt,
+        existing_filenames=existing_filenames,
+    )
     query_rpt = query_hist_ticker_dates(
         query_ticker_dates=to_query,
         etf_scraper=etf_scraper,
