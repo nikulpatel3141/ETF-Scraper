@@ -1,0 +1,27 @@
+steps:
+  # Build
+- name: 'gcr.io/cloud-builders/docker'
+  args: [ 'build', '-t', '${_IMAGE_NAME}', '-f', "docker/Dockerfile", "."]
+  
+  # Delete *all* existing images if present
+- name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:slim'
+  args: [
+    "gcloud",
+    "artifacts",
+    "docker",
+    "images",
+    "delete",
+    "${_IMAGE_NAME}",
+    "--delete-tags",
+    "--quiet"
+  ]
+  allowFailure: true
+
+  # Push
+- name: 'gcr.io/cloud-builders/docker'
+  args: ['push', '${_IMAGE_NAME}']
+
+substitutions:
+  _IMAGE_NAME: '${_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/${_IMAGE}'
+options:
+  dynamic_substitutions: true
