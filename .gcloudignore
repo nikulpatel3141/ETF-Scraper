@@ -3,6 +3,12 @@
 
 # Except our code + project config
 !pyproject.toml
-!src/etf_scraper
+!src
 !scripts
 !gcp
+!docker
+
+# re-exclude pip artifacts
+**/__pycache__
+**/*.egg_info
+**/*.egg-info

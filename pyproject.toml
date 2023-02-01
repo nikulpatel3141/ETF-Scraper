@@ -24,6 +24,7 @@ dependencies = [
 cloud = [
     "gcsfs",
     "fastparquet",
+    "google-cloud-bigquery",
 ]
 tests = [
     "pytest",

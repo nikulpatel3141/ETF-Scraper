@@ -21,12 +21,13 @@ gcloud beta run jobs create job-scraper \
 """
 import os
 import logging
+from datetime import datetime
 
 import pandas as pd
 
 from etf_scraper.main import scrape_holdings
 from etf_scraper.utils import parse_bool_env, get_list_chunk
-from etf_scraper.storage import format_hist_query_output
+from etf_scraper.storage import format_hist_query_output, DATE_FMT
 
 # save parameters
 TICKER_FILE = os.getenv("TICKER_FILE")
@@ -51,8 +52,9 @@ TASK_COUNT = int(os.getenv("CLOUD_RUN_TASK_COUNT", 1))
 TASK_INDEX = int(os.getenv("CLOUD_RUN_TASK_INDEX", 0))
 TASK_ATTEMPT = int(os.getenv("CLOUD_RUN_TASK_ATTEMPT", 0))
 
-# hardcode to parquet for conveniences
-LOGFILE = f"etf_scraper_log_{TASK_INDEX}_{TASK_COUNT}.parquet"
+# hardcode to parquet for convenience
+_TIME_STR_NOW = datetime.now().strftime(DATE_FMT + "__%H_%M")
+LOGFILE = f"etf_scraper_log_{_TIME_STR_NOW}_{TASK_INDEX}_{TASK_COUNT}.parquet"
 
 
 logging.basicConfig(
@@ -61,6 +63,14 @@ logging.basicConfig(
 )
 
 logger = logging.getLogger(__name__)
+
+
+def log_output(out):
+    num_scraped = len([1 for k in out.values() if "error" not in k])
+    logger.info(f"Scraped {num_scraped} holdings")
+
+    num_saved = len([1 for k in out.values() if "save_path" in k and k["save_path"]])
+    logger.info(f"Saved {num_saved} holdings")
 
 
 def main():
@@ -98,8 +108,7 @@ def main():
         NUM_THREADS,
         EXCHANGE,
     )
-    num_scraped = len([1 for k in out.values() if "error" not in k])
-    logger.info(f"Scraped {num_scraped} holdings")
+    log_output(out)
 
     if LOG_DIR:
         logfile_path = os.path.join(LOG_DIR, LOGFILE)

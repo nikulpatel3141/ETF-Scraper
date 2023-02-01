@@ -347,9 +347,9 @@ class SSGAListings(ProviderListings):
         "Identifier": "cusip",
         "SEDOL": "sedol",
         "Weight": "weight",
-        "Sector": "Sector",
+        "Sector": "sector",
         "Shares Held": "amount",
-        "Local Currency": "local_currency",
+        "Local Currency": "market_currency",
     }
 
     holdings_na_rep = {"weight": ["-"], "amount": ["-"]}

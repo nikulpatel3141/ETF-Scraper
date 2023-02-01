@@ -198,5 +198,5 @@ def format_hist_query_output(query_output) -> pd.DataFrame:
         .reset_index()
     )
     for col in ["query_date", "holdings_date"]:
-        df[:, col] = pd.to_datetime(df[col], errors="coerce")
+        df.loc[:, col] = pd.to_datetime(df[col], errors="coerce")
     return df
