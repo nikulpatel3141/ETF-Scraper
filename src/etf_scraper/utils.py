@@ -28,7 +28,7 @@ def check_missing_cols(
     missing_cols = [k for k in exp_cols if k not in returned_cols]
 
     if missing_cols:
-        logger.error(f"Missing expectd columns {missing_cols}")
+        logger.error(f"Missing expected columns {missing_cols}")
 
         if raise_error:
             raise ValueError(

@@ -770,22 +770,32 @@ class InvescoListings(ProviderListings):
 
     @classmethod
     def _parse_holdings_resp(cls, holdings_resp):
-        """Parse the CSVs Invesco provide for holdings data"""
+        """Parse the CSVs Invesco provide for holdings data
+        #TODO: make this work for bond funds too - the returned columns are different.
+        """
         holdings_df = pd.read_csv(StringIO(holdings_resp.decode()), thousands=",")
-        check_missing_cols(
-            ["Holding Ticker", "Shares/Par Value"],
-            holdings_df.columns,
-            raise_error=True,
-        )
+        holdings_df.columns = holdings_df.columns.str.strip()
+        try:
+            check_missing_cols(
+                ["Holding Ticker", "Shares/Par Value", "Date"],
+                holdings_df.columns,
+                raise_error=True,
+            )
+        except Exception as e:
+            cols = holdings_df.columns
+            if "Date" not in cols and "PositionDate" in cols:
+                raise NotImplementedError(
+                    f"Likely queried an Invesco bond fund, these are not implemented yet"
+                ) from e
+            raise e
         check_missing_cols(cls.holdings_resp_mapping, holdings_df.columns)
 
         holdings_df_ = holdings_df.reindex(
             columns=list(cls.holdings_resp_mapping)
         ).rename(columns=cls.holdings_resp_mapping)
 
-        holdings_df_.loc[:, "as_of_date"] = holdings_df_["as_of_date"].apply(
-            cls._parse_date
-        )
+        parsed_dates = holdings_df_["as_of_date"].apply(cls._parse_date)
+        holdings_df_.loc[:, "as_of_date"] = pd.to_datetime(parsed_dates)
         strip_str_cols(holdings_df_, ["ticker", "fund_ticker"])
         set_numeric_cols(holdings_df_, ["amount", "market_value", "weight"])
         return holdings_df_
