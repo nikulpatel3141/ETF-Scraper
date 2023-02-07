@@ -12,6 +12,7 @@ import numpy as np
 from etf_scraper.utils import (
     check_missing_cols,
     check_data_mismatch,
+    check_dupl_cols,
     safe_urljoin,
     set_numeric_cols,
     strip_str_cols,
@@ -347,9 +348,9 @@ class SSGAListings(ProviderListings):
         "Identifier": "cusip",
         "SEDOL": "sedol",
         "Weight": "weight",
-        "Sector": "Sector",
+        "Sector": "sector",
         "Shares Held": "amount",
-        "Local Currency": "local_currency",
+        "Local Currency": "market_currency",
     }
 
     holdings_na_rep = {"weight": ["-"], "amount": ["-"]}
@@ -736,7 +737,17 @@ class InvescoListings(ProviderListings):
         "Class of Shares": "security_type",  # FIXME: is this accurate???
         "Sector": "sector",
         "Date": "as_of_date",
+        # below for bond funds
+        "PositionDate": "as_of_date",
+        "CouponRate": "coupon",
+        "MaturityDate": "maturity_date",
+        "Effective Date": "effective_date",
+        "Next_Call_Date": "call_date",
+        "rating": "rating",
+        "PercentageOfFund": "weight",
     }
+    date_cols = ["as_of_date", "effective_date", "call_date", "maturity_date"]
+    numeric_cols = ["amount", "market_value", "weight", "coupon"]
 
     @classmethod
     def _parse_date(cls, date_str: str) -> date:
@@ -770,24 +781,48 @@ class InvescoListings(ProviderListings):
 
     @classmethod
     def _parse_holdings_resp(cls, holdings_resp):
-        """Parse the CSVs Invesco provide for holdings data"""
+        """Parse the CSVs Invesco provide for holdings data
+        #TODO: make this work for bond funds too - the returned columns are different.
+        """
         holdings_df = pd.read_csv(StringIO(holdings_resp.decode()), thousands=",")
+        holdings_df.columns = holdings_df.columns.str.strip()
+
+        exp_date_cols = [
+            "Date",  # for equity funds
+            "PositionDate",  # for bond funds
+        ]
+        check_dupl_cols(exp_date_cols, holdings_df.columns, "date")
+        check_dupl_cols(["Weight", "PercentageOfFund"], holdings_df.columns, "weight")
+
+        if "Date" in holdings_df:  # equity fund
+            exp_cols = ["Holding Ticker", "Shares/Par Value"]
+        else:
+            # for bonds CUSIP is the identifier
+            exp_cols = ["Security Identifier", "Shares/Par Value"]
+
         check_missing_cols(
-            ["Holding Ticker", "Shares/Par Value"],
+            exp_cols,
             holdings_df.columns,
             raise_error=True,
         )
-        check_missing_cols(cls.holdings_resp_mapping, holdings_df.columns)
 
-        holdings_df_ = holdings_df.reindex(
-            columns=list(cls.holdings_resp_mapping)
-        ).rename(columns=cls.holdings_resp_mapping)
+        holdings_df_ = holdings_df.rename(columns=cls.holdings_resp_mapping)
 
-        holdings_df_.loc[:, "as_of_date"] = holdings_df_["as_of_date"].apply(
-            cls._parse_date
-        )
+        def parse_date(x):
+            try:
+                return cls._parse_date(x)
+            except:
+                return pd.NaT
+
+        for col in cls.date_cols:
+            if col in holdings_df_:
+                parsed_dates = holdings_df_[col].apply(parse_date)
+                holdings_df_.loc[:, col] = pd.to_datetime(parsed_dates)
+
         strip_str_cols(holdings_df_, ["ticker", "fund_ticker"])
-        set_numeric_cols(holdings_df_, ["amount", "market_value", "weight"])
+        set_numeric_cols(
+            holdings_df_, [k for k in cls.numeric_cols if k in holdings_df_]
+        )
         return holdings_df_
 
     @classmethod

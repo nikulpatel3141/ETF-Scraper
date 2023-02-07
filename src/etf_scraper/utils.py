@@ -28,6 +28,27 @@ def check_missing_cols(
             )
 
 
+def check_dupl_cols(
+    exp_cols: Sequence[str], returned_cols: Sequence[str], col_name: str
+) -> str:
+    """Check and raise an error if >1 item in exp_cols appears in returned_cols,
+    otherwise returns that single element.
+
+    Useful for when the same column appears under different names, eg date is returned
+    as "Date" or "PositionDate" for Invesco funds.
+    """
+
+    matched_cols = [k for k in returned_cols if k in exp_cols]
+
+    if len(matched_cols) != 1:
+        raise ValueError(
+            f"Received {len(matched_cols)} {col_name} columns: {matched_cols}, "
+            f"was expecting exactly one of {exp_cols}"
+        )
+
+    return matched_cols[0]
+
+
 def check_data_mismatch(
     expected, returned, item_name: str, raise_error: bool = False
 ) -> None:
