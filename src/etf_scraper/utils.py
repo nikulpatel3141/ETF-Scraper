@@ -85,10 +85,21 @@ def set_numeric_cols(df: pd.DataFrame, cols: Sequence):
 
 
 def strip_str_cols(df: pd.DataFrame, cols: Sequence):
-    """Apply str.strip in place to the given columns"""
+    """Try to apply str.strip in place to the given columns,
+    on failure returns the original item.
+
+    # FIXME: this is bug prone, eg if we accidentally call this on
+    a non-string column, (but convenient, eg if we have missing tickers)
+    """
+
+    def strip_(s):
+        try:
+            return s.strip()
+        except:
+            return s
 
     for col in cols:
-        df.loc[:, col] = df[col].str.strip()
+        df.loc[:, col] = df[col].apply(strip_)
 
 
 def _get_trd_dates(start_date: str, end_date: str, exchange: str) -> pd.DatetimeIndex:

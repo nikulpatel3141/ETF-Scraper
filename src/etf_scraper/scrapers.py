@@ -782,7 +782,8 @@ class InvescoListings(ProviderListings):
     @classmethod
     def _parse_holdings_resp(cls, holdings_resp):
         """Parse the CSVs Invesco provide for holdings data
-        #TODO: make this work for bond funds too - the returned columns are different.
+        #TODO: make this work for futures funds too - the returned columns are different
+        # from bond and equity funds.
         """
         holdings_df = pd.read_csv(StringIO(holdings_resp.decode()), thousands=",")
         holdings_df.columns = holdings_df.columns.str.strip()

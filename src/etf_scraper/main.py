@@ -1,3 +1,7 @@
+"""Top level functions to parse user input, scrape ETF holdings and save it locally or
+in a cloud storage bucket.
+"""
+
 from pathlib import Path
 import warnings
 from datetime import date
@@ -82,7 +86,30 @@ def scrape_holdings(
     out_fmt: SaveFormat,
     num_threads: int = 10,
     exchange: str = "NYSE",
-):
+    existing_file_dir: str = "",
+) -> dict:
+    """Scrape ETF holdings for the given tickers + date range specified
+    and saves it to save_dir using etf_scraper.storage.default_save_func.
+
+    Args:
+    - start_date: date to start querying from. If this + end_date blank then
+    query for latest holdings.
+    - month_ends: if True then only query for month ends
+    - trading_days: if True then only query for trading days. If month_ends=True
+    then only query for month end trading days.
+    - overwrite: if True then ignore all existing files and requery all requested
+    dates + tickers.
+    - exchange: only relevant when trading_days=True. Used to determine the
+    exchange calendar to subset on.
+    - existing_file_dir: recursively list existing files to determine remaining
+    tickers + dates to query. If not given, then save_dir is used instead.
+
+    Returns: a dict logs for each ticker + date queried. See
+    etf_scraper.storage.default_save_func for the log format
+    """
+    if not existing_file_dir:
+        existing_file_dir = save_dir
+
     etf_scraper = ETFScraper()
     query_dates = parse_query_date_range(
         start_date,
@@ -101,7 +128,7 @@ def scrape_holdings(
         logger.warning(f"Overwriting existing data (if any) at {save_dir}")
         existing_files = []
     else:
-        existing_files = list_files(save_dir, "." + out_fmt)
+        existing_files = list_files(existing_file_dir, "." + out_fmt)
         logger.info(f"Found {len(existing_files)} .{out_fmt} files in {save_dir}")
 
     if list(query_dates) != [None]:

@@ -3,18 +3,26 @@
 """Script to run as a `Google Cloud Run Job`. Expects all parameters to be passed as env vars
 since this is how Cloud Run Jobs accept parameters
 
-Scrape a subset of tickers in the passed file based on the CLOUD_RUN_TASK_INDEX env var.
-See: https://cloud.google.com/run/docs/quickstarts/jobs/build-create-python
+To run with minimal configuration, set TICKER_FILE (one ticker per line) and SAVE_DIR (path to save output).
+
+Note: this will save to SAVE_DIR/YYYY_MM_DD for convenience (for my use case).
+
+Each run instance will scrape a subset of tickers in the passed file based on the CLOUD_RUN_TASK_INDEX
+env var.
+
+For more details see:
+- https://cloud.google.com/run/docs/quickstarts/jobs/build-create-python
+- https://cloud.google.com/sdk/gcloud/reference/beta/run/jobs/create
 
 Usage:
 
 ```bash
 NUM_TASKS=20
 
-gcloud beta run jobs create job-scraper \
+gcloud beta run jobs create scraper-job \
     --image gcr.io/PROJECT_ID/scraping-job \
     --tasks ${NUM_TASKS} \
-    --set-env-vars TICKER_FILE='gs://path/to/ticker/file.txt' \
+    --set-env-vars TICKER_FILE='gs://path/to/ticker/file.txt',SAVE_DIR='gs://path/to/holdings/dir/' \
     --max-retries 1 \
     --region REGION
 ```
@@ -95,6 +103,9 @@ def main():
     if not len(tickers_to_query):
         logger.info(f"No tickers to query")
         return
+
+    save_dir = os.path.join(SAVE_DIR, datetime.now().strftime(DATE_FMT))
+    logger.info(f"Will save any scraped holdings to {save_dir}")
 
     out = scrape_holdings(
         tickers_to_query,
