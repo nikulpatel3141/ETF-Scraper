@@ -6,7 +6,7 @@ from pathlib import Path
 import warnings
 from datetime import date
 from functools import partial
-from typing import List, Sequence
+from typing import List, Sequence, Union
 import logging
 
 from etf_scraper import ETFScraper
@@ -44,7 +44,7 @@ def parse_query_date_range(
     trading_days: bool = False,
     overwrite: bool = False,
     exchange: str = "NYSE",
-) -> Sequence[date | None]:
+) -> Sequence[Union[date, None]]:
     """Parse user input to generate a list of query dates"""
 
     if not start_date:

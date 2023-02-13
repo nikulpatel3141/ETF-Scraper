@@ -9,7 +9,7 @@ import os
 from datetime import date, datetime
 from pathlib import Path
 from itertools import product
-from typing import Any, Callable, Dict, List, Sequence, Tuple
+from typing import Any, Callable, Dict, List, Sequence, Tuple, Union
 from traceback import format_exc
 from multiprocessing.pool import ThreadPool
 from enum import Enum
@@ -103,7 +103,7 @@ def default_save_func(
     out_dir: str,
     out_fmt: SaveFormat = SaveFormat.csv,
     existing_filenames: Sequence[str] = (),
-) -> str | None:
+) -> Union[str, None]:
     """Example function to pass to `query_range`. Saves output data to
     a file in out_dir (can be any filesystem supported by Pandas, eg local or
     a bucket on the cloud).
@@ -133,7 +133,7 @@ def default_save_func(
 
 
 def query_hist_ticker_dates(
-    query_ticker_dates: Sequence[Tuple[str, date | None]],
+    query_ticker_dates: Sequence[Tuple[str, Union[date, None]]],
     etf_scraper: ETFScraper,
     save_func: Callable[[pd.DataFrame, str, date], Any],
     num_threads: int = 10,
@@ -154,7 +154,7 @@ def query_hist_ticker_dates(
     # FIXME: put these retry parameters in a comfig file
     @retry(
         reraise=True,
-        retry=retry_if_not_exception_type([InvalidParameterError, ImportError]),
+        retry=retry_if_not_exception_type((InvalidParameterError, ImportError)),
         wait=wait_random_exponential(multiplier=1, max=60),
         stop=stop_after_attempt(3),
         before_sleep=before_sleep_log(logger, logging.INFO),

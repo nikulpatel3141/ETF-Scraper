@@ -21,6 +21,9 @@ from typing import Sequence
 import pandas as pd
 from google.cloud import bigquery
 
+DATASET_NAME = "etf_holdings"
+HOLDINGS_TABLE = "etf_holdings"
+
 HOLDINGS_BQ_DTYPES = [
     bigquery.SchemaField("fund_ticker", "STRING"),
     bigquery.SchemaField("as_of_date", "TIMESTAMP"),  # FIXME: see above
@@ -95,8 +98,7 @@ def list_existing_data(
     date_cutoff: date,
 ) -> pd.DataFrame:
     """Query for fund ticker + date pairs already in the database.
-    Can also reduce the minimum date returned to avoid returning too much
-    data.
+    Can also supply a minimum date to avoid returning too much data.
     """
     query = f"""
     SELECT DISTINCT fund_ticker, as_of_date
@@ -107,9 +109,18 @@ def list_existing_data(
         date_str = date_cutoff.strftime("%Y-%m-%d")
         query = f"""
         {query}
-        WHERE as_of_date>='{date_str}
+        WHERE as_of_date >= '{date_str}
         """
 
     ticker_dates = pd.read_gbq(query, project_id=project_id, dialect="standard")
     ticker_dates.loc[:, "as_of_date"] = pd.to_datetime(ticker_dates["as_of_date"])
     return ticker_dates
+
+
+def push_new_data(
+    data_uri: str,
+    table_name: str,
+    dataset_name: str,
+    project_id: str,
+):
+    """List for parquet files in data_uri and"""
