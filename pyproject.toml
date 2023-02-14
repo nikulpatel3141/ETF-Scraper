@@ -23,7 +23,7 @@ dependencies = [
 [project.optional-dependencies]
 cloud = [
     "gcsfs",
-    "fastparquet<=2023.01",
+    "fastparquet<2023.3",
     "google-cloud-bigquery",
 ]
 tests = [
