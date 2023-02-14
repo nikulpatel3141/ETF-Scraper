@@ -13,6 +13,14 @@ This is still a work in progress and may not work for _every_ listed fund. In pa
 
 ## Installation
 
+### From PyPI
+
+```bash
+pip install etf_scraper
+```
+
+### From Source
+
 ```bash
 git clone https://github.com/nikulpatel3141/ETF-Scraper
 cd ETF-Scraper/
