@@ -114,7 +114,7 @@ def main():
         MONTH_ENDS,
         TRADING_DAYS,
         OVERWRITE,
-        SAVE_DIR,
+        save_dir,
         SAVE_FMT,
         NUM_THREADS,
         EXCHANGE,
