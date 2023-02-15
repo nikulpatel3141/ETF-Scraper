@@ -14,15 +14,20 @@ parquet format, not INT32 which is what BigQuery expects for DATE.
 See: https://cloud.google.com/bigquery/docs/loading-data-cloud-storage-parquet#type_conversions
 """
 
-from datetime import date, datetime
 import logging
+import os
+from datetime import date, datetime
 from typing import Sequence
 
 import pandas as pd
 from google.cloud import bigquery
 
+from etf_scraper.storage import list_files, parse_holdings_filename, DATE_FMT
+
+DATA_URI = os.getenv("DATA_URI")
+PROJECT_ID = os.getenv("PROJECT_ID")
 DATASET_NAME = "etf_holdings"
-HOLDINGS_TABLE = "etf_holdings"
+HOLDINGS_TABLE_NAME = "etf_holdings"
 
 HOLDINGS_BQ_DTYPES = [
     bigquery.SchemaField("fund_ticker", "STRING"),
@@ -45,6 +50,11 @@ HOLDINGS_BQ_DTYPES = [
     bigquery.SchemaField("fx_rate", "FLOAT"),
     bigquery.SchemaField("market_currency", "STRING"),
 ]
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="[%(asctime)s] [%(filename)16s:%(lineno)4d:%(levelname)8s] - %(message)s",
+)  # FIXME: duplication
 
 logger = logging.getLogger(__name__)
 
@@ -117,10 +127,69 @@ def list_existing_data(
     return ticker_dates
 
 
-def push_new_data(
+def list_new_uris(
     data_uri: str,
     table_name: str,
     dataset_name: str,
     project_id: str,
 ):
-    """List for parquet files in data_uri and"""
+    """List for holdings files in data_uri not yet in the holdings table"""
+    data_uris = list_files(data_uri, "parquet")
+    existing_ticker_dates = list_existing_data(
+        table_name,
+        dataset_name,
+        project_id,
+    )
+    existing_ticker_dates_ = existing_ticker_dates.apply(tuple, axis=1).to_numpy()
+    to_push = []
+
+    for uri in data_uris:
+        ticker, date_, _ = parse_holdings_filename(uri)
+        if (ticker, date_) not in existing_ticker_dates_:
+            to_push.append(uri)
+
+    return to_push
+
+
+def update_holdings_table(
+    data_uri: str,
+    table_name: str,
+    dataset_name: str,
+    project_id: str,
+):
+    logger.info(f"Listing for files to upload at {data_uri}")
+    new_uris = list_new_uris(data_uri, table_name, dataset_name, project_id)
+    logger.info(
+        f"Found {len(new_uris)} new files to push to {dataset_name}.{table_name}"
+    )
+    uris_to_bigquery(
+        data_uris=new_uris,
+        table_name=table_name,
+        dataset_name=dataset_name,
+        project_id=project_id,
+    )
+
+
+def main():
+    for k, v in {"PROJECT_ID": PROJECT_ID, "DATA_URI": DATA_URI}.items():
+        if not v:
+            # FIXME: can query GCP metadata for this
+            # see https://stackoverflow.com/questions/65088076/how-to-find-the-current-project-id-of-the-deployed-python-function-in-google-clo
+            raise ValueError(f"{k} env var not set, exiting")
+
+    # FIXME: duplication from cloud_run_scraper.py
+    # FIXME: enough to just pass DATA_URI, but append date to prevent accidentally
+    # uploading loads of files
+    data_uri = os.path.join(DATA_URI, datetime.now().strftime(DATE_FMT))
+
+    logger.info("Attempting to update the holdings table")
+    update_holdings_table(
+        data_uri=data_uri,
+        table_name=HOLDINGS_TABLE_NAME,
+        dataset_name=DATASET_NAME,
+        project_id=PROJECT_ID,
+    )
+
+
+if __name__ == "__main__":
+    main()
