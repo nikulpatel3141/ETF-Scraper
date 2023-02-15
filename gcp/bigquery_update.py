@@ -17,7 +17,7 @@ See: https://cloud.google.com/bigquery/docs/loading-data-cloud-storage-parquet#t
 import logging
 import os
 from datetime import date, datetime
-from typing import Sequence
+from typing import Sequence, List
 
 import pandas as pd
 from google.cloud import bigquery
@@ -105,7 +105,7 @@ def list_existing_data(
     table_name: str,
     dataset_name: str,
     project_id: str,
-    date_cutoff: date,
+    date_cutoff: date = None,
 ) -> pd.DataFrame:
     """Query for fund ticker + date pairs already in the database.
     Can also supply a minimum date to avoid returning too much data.
@@ -132,8 +132,12 @@ def list_new_uris(
     table_name: str,
     dataset_name: str,
     project_id: str,
-):
-    """List for holdings files in data_uri not yet in the holdings table"""
+) -> List[str]:
+    """List for holdings files in data_uri not yet in the holdings table
+
+    Returns: a list of .parquet uris under data_uri not yet pushed to our
+    table (based on the filenames).
+    """
     data_uris = list_files(data_uri, "parquet")
     existing_ticker_dates = list_existing_data(
         table_name,
@@ -141,12 +145,18 @@ def list_new_uris(
         project_id,
     )
     existing_ticker_dates_ = existing_ticker_dates.apply(tuple, axis=1).to_numpy()
-    to_push = []
+    to_push, collected_ticker_dates = []
 
     for uri in data_uris:
         ticker, date_, _ = parse_holdings_filename(uri)
         if (ticker, date_) not in existing_ticker_dates_:
-            to_push.append(uri)
+            if (ticker, date_) in collected_ticker_dates:
+                logger.warning(
+                    f"Found duplicate holdings file for {ticker}, {date_} at {uri}, skipping"
+                )
+            else:
+                to_push.append(uri)
+                collected_ticker_dates.append((ticker, date_))
 
     return to_push
 

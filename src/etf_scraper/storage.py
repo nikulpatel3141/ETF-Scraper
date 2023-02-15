@@ -52,8 +52,15 @@ def list_files(path: str, extension: str) -> List[str]:
         import gcsfs
 
         fs = gcsfs.GCSFileSystem()
-        glob_uri = os.path.join(path, "*" + extension)
-        return ["gs://" + x for x in fs.glob(glob_uri)]
+        glob_patterns = [
+            "**/*",
+            "*",
+        ]  # list recursively # FIXME: there should be a better way to do this
+        glob_uris = [
+            os.path.join(path, pattern + extension) for pattern in glob_patterns
+        ]
+        return ["gs://" + x for uri in glob_uris for x in fs.glob(uri)]
+
     else:
         raise NotImplementedError(
             f"Can only list local and GCS filesystems, not for {path}"
