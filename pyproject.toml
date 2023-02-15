@@ -6,10 +6,11 @@ build-backend = "setuptools.build_meta"
 name = "etf_scraper"
 dynamic = ["version"]
 description = "Scrape ETF and Mutual Fund holdings from major providers"
-readme = "README.rst"
+readme = "README.md"
 requires-python = ">=3.8"
 classifiers = [
     "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
 ]
 dependencies = [
     "requests",
@@ -29,6 +30,9 @@ cloud = [
 tests = [
     "pytest",
 ]
+
+[project.urls]
+Home = "https://github.com/nikulpatel3141/ETF-Scraper"
 
 [tool.setuptools.packages.find]
 where = ["src"]
