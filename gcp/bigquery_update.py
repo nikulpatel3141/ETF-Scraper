@@ -23,7 +23,11 @@ from pathlib import Path
 import pandas as pd
 from google.cloud import bigquery
 
-from etf_scraper.storage import list_files, parse_holdings_filename, DATE_FMT
+from etf_scraper.storage import (
+    list_files,
+    holdings_filename,
+    DATE_FMT,
+)
 
 DATA_URI = os.getenv("DATA_URI")
 PROJECT_ID = os.getenv("PROJECT_ID")
@@ -43,13 +47,13 @@ HOLDINGS_BQ_DTYPES = [
     bigquery.SchemaField("security_type", "STRING"),
     bigquery.SchemaField("sector", "STRING"),
     bigquery.SchemaField("market_value", "FLOAT"),
-    bigquery.SchemaField("notional_value", "FLOAT"),
+    # bigquery.SchemaField("notional_value", "FLOAT"),
     bigquery.SchemaField("price", "FLOAT"),
     bigquery.SchemaField("location", "STRING"),
     bigquery.SchemaField("exchange", "STRING"),
     bigquery.SchemaField("currency", "STRING"),
-    bigquery.SchemaField("fx_rate", "FLOAT"),
-    bigquery.SchemaField("market_currency", "STRING"),
+    # bigquery.SchemaField("fx_rate", "FLOAT"),
+    # bigquery.SchemaField("market_currency", "STRING"),
 ]
 
 logging.basicConfig(
@@ -77,12 +81,13 @@ def uris_to_bigquery(
     job_config = bigquery.LoadJobConfig(
         ignore_unknown_values=True,
         create_disposition="CREATE_NEVER",
-        writeDisposition="WRITE_APPEND",
-        sourceFormat="PARQUET",
+        write_disposition="WRITE_APPEND",
+        source_format="PARQUET",
     )
     load_job = client.load_table_from_uri(
         source_uris=data_uris, destination=table_id, job_config=job_config
     )
+    load_job.result()
     return load_job
 
 
@@ -138,26 +143,28 @@ def list_new_uris(
     Returns: a list of .parquet uris under data_uri not yet pushed to our
     table (based on the filenames).
     """
-    data_uris = list_files(data_uri, "parquet")
+    data_uris = list_files(data_uri, ".parquet")
     existing_ticker_dates = list_existing_data(
         table_name,
         dataset_name,
         project_id,
     )
-    existing_ticker_dates_ = existing_ticker_dates.apply(tuple, axis=1).to_numpy()
-    to_push, collected_ticker_dates = [], []
+    to_filename = lambda x: holdings_filename(
+        x["fund_ticker"], x["as_of_date"], ".parquet"
+    )
+    existing_files = existing_ticker_dates.apply(
+        to_filename, axis=1
+    ).to_numpy()  # less error prone than comparing raw ticker + dates
+    to_push, collected_files = [], []
 
     for uri in data_uris:
         filename = Path(uri).name
-        ticker, date_, _ = parse_holdings_filename(filename)
-        if (ticker, date_) not in existing_ticker_dates_:
-            if (ticker, date_) in collected_ticker_dates:
-                logger.warning(
-                    f"Found duplicate holdings file for {ticker}, {date_} at {uri}, skipping"
-                )
+        if filename not in existing_files:
+            if filename in collected_files:
+                logger.warning(f"Found duplicate holdings file {uri}, skipping")
             else:
                 to_push.append(uri)
-                collected_ticker_dates.append((ticker, date_))
+                collected_files.append(filename)
 
     return to_push
 
@@ -173,6 +180,7 @@ def update_holdings_table(
     logger.info(
         f"Found {len(new_uris)} new files to push to {dataset_name}.{table_name}"
     )
+    logger.info("Attempting to update the holdings table")
     uris_to_bigquery(
         data_uris=new_uris,
         table_name=table_name,
@@ -193,13 +201,13 @@ def main():
     # uploading loads of files
     data_uri = os.path.join(DATA_URI, datetime.now().strftime(DATE_FMT))
 
-    logger.info("Attempting to update the holdings table")
     update_holdings_table(
         data_uri=data_uri,
         table_name=HOLDINGS_TABLE_NAME,
         dataset_name=DATASET_NAME,
         project_id=PROJECT_ID,
     )
+    logger.info("Done!")
 
 
 if __name__ == "__main__":

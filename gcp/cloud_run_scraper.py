@@ -35,7 +35,7 @@ import pandas as pd
 
 from etf_scraper.main import scrape_holdings
 from etf_scraper.utils import parse_bool_env, get_list_chunk
-from etf_scraper.storage import format_hist_query_output, DATE_FMT
+from etf_scraper.storage import format_hist_query_output, default_save_func, DATE_FMT
 
 # save parameters
 TICKER_FILE = os.getenv("TICKER_FILE")
@@ -76,6 +76,41 @@ logging.basicConfig(
 )
 
 logger = logging.getLogger(__name__)
+
+
+def save_func(
+    holdings_df: pd.DataFrame,
+    ticker: str,
+    holdings_date,
+    out_dir: str,
+    out_fmt: str,
+    existing_filenames,
+):
+    """Coerce numeric dtypes as BigQuery expects before saving to parquet.
+    Eg int64 in parquet doesn't convert to NUMERIC/FLOAT so for convenience
+    force all numeric columns to float.
+
+    #FIXME: messy kwargs handling.
+    """
+    numeric_cols = ["amount", "weight", "market_value", "price"]
+
+    for col in numeric_cols:
+        if col in holdings_df:
+            holdings_df.loc[:, col] = pd.to_numeric(
+                holdings_df[col],
+                downcast="float",
+                errors="coerce",  # shouldn't expect errors at this point anyway
+            )
+
+    return default_save_func(
+        holdings_df=holdings_df,
+        ticker=ticker,
+        holdings_date=holdings_date,
+        out_dir=out_dir,
+        out_fmt=out_fmt,
+        existing_filenames=existing_filenames,
+        save_kwargs=PARQUET_SAVE_OPTS,
+    )
 
 
 def log_output(out):
@@ -123,6 +158,7 @@ def main():
         SAVE_FMT,
         NUM_THREADS,
         EXCHANGE,
+        save_func=save_func,
     )
     log_output(out)
 

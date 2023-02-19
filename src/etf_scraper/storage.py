@@ -110,7 +110,7 @@ def default_save_func(
     out_dir: str,
     out_fmt: SaveFormat = SaveFormat.csv,
     existing_filenames: Sequence[str] = (),
-    **save_kwargs,
+    save_kwargs: Union[dict, None] = None,
 ) -> Union[str, None]:
     """Example function to pass to `query_hist_ticker_dates`. Saves output data to
     a file in out_dir (can be any filesystem supported by Pandas, eg local or
@@ -134,6 +134,9 @@ def default_save_func(
     if filename in existing_filenames:
         logger.info(f"File {filename} already exists, not saving again.")
         return None
+
+    if not save_kwargs:
+        save_kwargs = {}
 
     out_path = os.path.join(out_dir, filename)
     logger.info(f"Saving holdings to {out_path}")
