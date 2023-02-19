@@ -87,6 +87,7 @@ def scrape_holdings(
     num_threads: int = 10,
     exchange: str = "NYSE",
     existing_file_dir: str = "",
+    save_kwargs: Union[dict, None] = None,
 ) -> dict:
     """Scrape ETF holdings for the given tickers + date range specified
     and saves it to save_dir using etf_scraper.storage.default_save_func.
@@ -103,12 +104,16 @@ def scrape_holdings(
     exchange calendar to subset on.
     - existing_file_dir: recursively list existing files to determine remaining
     tickers + dates to query. If not given, then save_dir is used instead.
+    - save_kwargs: pass to default_save_function
 
     Returns: a dict logs for each ticker + date queried. See
     etf_scraper.storage.default_save_func for the log format
     """
     if not existing_file_dir:
         existing_file_dir = save_dir
+
+    if not save_kwargs:
+        save_kwargs = {}
 
     etf_scraper = ETFScraper()
     query_dates = parse_query_date_range(
@@ -160,6 +165,7 @@ def scrape_holdings(
         out_dir=save_dir,
         out_fmt=out_fmt,
         existing_filenames=existing_filenames,
+        **save_kwargs,
     )
     query_rpt = query_hist_ticker_dates(
         query_ticker_dates=to_query,

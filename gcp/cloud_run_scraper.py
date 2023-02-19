@@ -64,6 +64,11 @@ TASK_ATTEMPT = int(os.getenv("CLOUD_RUN_TASK_ATTEMPT", 0))
 _TIME_STR_NOW = datetime.now().strftime(DATE_FMT + "__%H_%M")
 LOGFILE = f"etf_scraper_log_{_TIME_STR_NOW}_{TASK_INDEX}_{TASK_COUNT}.parquet"
 
+PARQUET_SAVE_OPTS = {
+    "engine": "pyarrow",
+    "coerce_timestamps": "ms",
+    "allow_truncated_timestamps": True,
+}
 
 logging.basicConfig(
     level=logging.INFO,

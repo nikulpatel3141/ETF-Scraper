@@ -110,8 +110,9 @@ def default_save_func(
     out_dir: str,
     out_fmt: SaveFormat = SaveFormat.csv,
     existing_filenames: Sequence[str] = (),
+    **save_kwargs,
 ) -> Union[str, None]:
-    """Example function to pass to `query_range`. Saves output data to
+    """Example function to pass to `query_hist_ticker_dates`. Saves output data to
     a file in out_dir (can be any filesystem supported by Pandas, eg local or
     a bucket on the cloud).
 
@@ -126,6 +127,7 @@ def default_save_func(
     out_fmt="csv" will use df.to_csv and save to a file {ticker}_{date}.csv
     - existing_filenames: Don't write if the target filename is in this list of
     existing filenames. If this behaviour is not desired, then pass existing_filenames = []
+    - save_kwargs: args to pass to pd.save_{{out_fmt}}, eg sep=',' for pd.to_csv.
     """
     filename = holdings_filename(ticker, holdings_date, "." + out_fmt)
 
@@ -135,7 +137,7 @@ def default_save_func(
 
     out_path = os.path.join(out_dir, filename)
     logger.info(f"Saving holdings to {out_path}")
-    getattr(holdings_df, f"to_{out_fmt}")(out_path, index=False)
+    getattr(holdings_df, f"to_{out_fmt}")(out_path, index=False, **save_kwargs)
     return out_path
 
 

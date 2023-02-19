@@ -18,6 +18,7 @@ import logging
 import os
 from datetime import date, datetime
 from typing import Sequence, List
+from pathlib import Path
 
 import pandas as pd
 from google.cloud import bigquery
@@ -82,7 +83,6 @@ def uris_to_bigquery(
     load_job = client.load_table_from_uri(
         source_uris=data_uris, destination=table_id, job_config=job_config
     )
-    load_job.w
     return load_job
 
 
@@ -105,7 +105,7 @@ def list_existing_data(
     table_name: str,
     dataset_name: str,
     project_id: str,
-    date_cutoff: date = None,
+    date_cutoff: date | None = None,
 ) -> pd.DataFrame:
     """Query for fund ticker + date pairs already in the database.
     Can also supply a minimum date to avoid returning too much data.
@@ -145,10 +145,11 @@ def list_new_uris(
         project_id,
     )
     existing_ticker_dates_ = existing_ticker_dates.apply(tuple, axis=1).to_numpy()
-    to_push, collected_ticker_dates = []
+    to_push, collected_ticker_dates = [], []
 
     for uri in data_uris:
-        ticker, date_, _ = parse_holdings_filename(uri)
+        filename = Path(uri).name
+        ticker, date_, _ = parse_holdings_filename(filename)
         if (ticker, date_) not in existing_ticker_dates_:
             if (ticker, date_) in collected_ticker_dates:
                 logger.warning(
