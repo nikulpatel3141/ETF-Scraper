@@ -36,7 +36,7 @@ HOLDINGS_TABLE_NAME = "etf_holdings"
 
 HOLDINGS_BQ_DTYPES = [
     bigquery.SchemaField("fund_ticker", "STRING"),
-    bigquery.SchemaField("as_of_date", "TIMESTAMP"),  # FIXME: see above
+    bigquery.SchemaField("as_of_date", "DATE"),
     bigquery.SchemaField("ticker", "STRING"),
     bigquery.SchemaField("isin", "STRING"),
     bigquery.SchemaField("sedol", "STRING"),

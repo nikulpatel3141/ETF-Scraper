@@ -102,6 +102,9 @@ def save_func(
                 errors="coerce",  # shouldn't expect errors at this point anyway
             )
 
+    # pyarrow will now store this as date, not timestamp
+    holdings_df.loc[:, "as_of_date"] = holdings_df["as_of_date"].dt.date
+
     return default_save_func(
         holdings_df=holdings_df,
         ticker=ticker,
