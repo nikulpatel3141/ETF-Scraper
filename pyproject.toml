@@ -26,6 +26,7 @@ cloud = [
     "gcsfs",
     "pyarrow",
     "google-cloud-bigquery",
+    "pandas-gbq"
 ]
 tests = [
     "pytest",
