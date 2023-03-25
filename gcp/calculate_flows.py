@@ -7,10 +7,9 @@ from datetime import datetime, date
 from pathlib import Path
 
 import pandas as pd
-from google.cloud import storage
 
 PROJECT_ID = os.getenv("PROJECT_ID")
-SAVE_URI = os.getenv("SAVE_URI")  # expects gs://path/to/file.json
+SAVE_DIR = os.getenv("SAVE_DIR")
 
 DATASET_NAME = "etf_holdings"
 HOLDINGS_TABLE_NAME = "etf_holdings"
@@ -41,24 +40,6 @@ logging.basicConfig(
 )
 
 logger = logging.getLogger(__name__)
-
-
-def parse_uri(uri: str):
-    """Split a (GCS) URI to bucket + path, eg
-    "gs://bucket/path/to/file.json" -> ("bucket", "path/to/file.json")
-    """
-    _, bucket, *blob = Path(uri).parts
-    return bucket, "/".join(blob)
-
-
-def gcs_write(bucket_name, blob_name, to_write: str):
-    """Write and read a blob from GCS using file-like IO"""
-    storage_client = storage.Client()
-    bucket = storage_client.bucket(bucket_name)
-    blob = bucket.blob(blob_name)
-
-    with blob.open("w") as f:
-        f.write(to_write)
 
 
 def n_bdays_ago(date_: date, n: int) -> date:
@@ -180,9 +161,12 @@ def main():
         **{k: styler.to_html() for k, styler in styled_data.items()},
         "as_of_date": str(cur_holdings_date),
     }
-    styled_data_html_ = json.dumps(styled_data_html)
-    logger.info(f"Attempting to save to bucket {bucket}, blob {blob}")
-    gcs_write(bucket, blob, styled_data_html_)
+
+    logger.info(f"Attempting to save to bucket {SAVE_DIR}")
+
+    with open(SAVE_DIR, "w") as f:
+        json.dump(styled_data_html, f)
+
     logger.info("Done!")
 
 

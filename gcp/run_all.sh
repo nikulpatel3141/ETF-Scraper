@@ -1,7 +1,21 @@
 #!/usr/bin/env bash
 
-python3 cloud_run_scraper.py
+TMP_OUT_DIR='/tmp/etf_scraper_output'
 
-python3 bigquery_update.py
+mkdir ${TMP_OUT_DIR}
+export SAVE_DIR=${TMP_OUT_DIR}/output.json
 
-python3 calculate_flows.py
+# python3 cloud_run_scraper.py
+
+# python3 bigquery_update.py
+
+python3 calculate_flows.py # outputs to SAVE_DIR
+
+python3 setup_gh.py
+
+cd TMP_OUT_DIR
+git init
+git remote set origin ${GH_OUT_REPO_URL}
+git add .
+git commit -m "Cloud Run scheduled run $(date)"
+git push origin master
