@@ -129,9 +129,8 @@ def main():
     #FIXME: refactor
     """
     logger.info(
-        f"Attempting to calculate flows and save formatted output to {SAVE_URI}"
+        f"Attempting to calculate flows and save formatted output to {SAVE_DIR}"
     )
-    bucket, blob = parse_uri(SAVE_URI)
 
     cur_holdings_date, lookback_date, buffer_lookback_date = get_query_dates()
     flow_query = generate_flow_query(
