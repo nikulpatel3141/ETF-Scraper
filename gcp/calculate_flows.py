@@ -7,6 +7,8 @@ from datetime import datetime, date
 from pathlib import Path
 
 import pandas as pd
+from google.cloud import storage
+
 
 PROJECT_ID = os.getenv("PROJECT_ID")
 SAVE_URI = os.getenv("SAVE_URI")
