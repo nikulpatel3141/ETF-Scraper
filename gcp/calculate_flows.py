@@ -1,19 +1,37 @@
-"""Calculate flows 
-"""
+"""Calculate flows and saves as nicely formatted HTML tables in GCS"""
 
 import logging
 import os
-from datetime import datetime, timedelta, date
+import json
+from datetime import datetime, date
+from pathlib import Path
 
 import pandas as pd
+from google.cloud import storage
+
+PROJECT_ID = os.getenv("PROJECT_ID")
+DATASET_NAME = "etf_holdings"
+HOLDINGS_TABLE_NAME = "etf_holdings"
+SAVE_URI = os.getenv("SAVE_URI")  # expects gs://path/to/file.json
 
 FLOW_DELAY = 2  # cutoff calculations to 2 business days ago
 LOOKBACK_WINDOW = int(os.getenv("LOOKBACK_WINDOW", 21))
 UNIVERSE_FUND = "IVV"
 
-PROJECT_ID = os.getenv("PROJECT_ID")
-DATASET_NAME = "etf_holdings"
-HOLDINGS_TABLE_NAME = "etf_holdings"
+HOLDINGS_TABLE = f"`{PROJECT_ID}.{DATASET_NAME}.{HOLDINGS_TABLE_NAME}`"
+_FMT_TICKER = """REPLACE(REPLACE(ticker, " ", ""), ".", "")"""
+
+TBL_BORDER = "1px"
+TBL_STYLES = [
+    {"selector": "tr:hover", "props": "background-color: yellow"},
+    {"selector": "th", "props": "background-color: #346eeb"},
+    {"selector": "th, td", "props": "padding: 4px; border: 1px solid grey"},
+]
+TBL_ATTRS = "style='border-collapse: collapse;'"
+BAR_COLORS = ["#d65f5f", "#5fba7d"]
+BAR_PROPS = "opacity: 0.8; width: 10em; text-align: center;"
+
+NUM_TICKER_SUBSET = 10
 
 
 logging.basicConfig(
@@ -24,12 +42,22 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-DATASET_NAME = "etf_holdings"  # FIXME: repetition
-HOLDINGS_TABLE_NAME = "etf_holdings"
+def parse_uri(uri: str):
+    """Split a (GCS) URI to bucket + path, eg
+    "gs://bucket/path/to/file.json" -> ("bucket", "path/to/file.json")
+    """
+    _, bucket, *blob = Path(uri).parts
+    return bucket, "/".join(blob)
 
 
-HOLDINGS_TABLE = f"`{PROJECT_ID}.{DATASET_NAME}.{HOLDINGS_TABLE_NAME}`"
-_FMT_TICKER = """REPLACE(REPLACE(ticker, " ", ""), ".", "")"""
+def gcs_write(bucket_name, blob_name, to_write: str):
+    """Write and read a blob from GCS using file-like IO"""
+    storage_client = storage.Client()
+    bucket = storage_client.bucket(bucket_name)
+    blob = bucket.blob(blob_name)
+
+    with blob.open("w") as f:
+        f.write(to_write)
 
 
 def n_bdays_ago(date_: date, n: int) -> date:
@@ -53,12 +81,12 @@ def generate_flow_query(cur_holdings_date, lookback_date, buffer_lookback_date) 
         WHERE as_of_date BETWEEN "{buffer_lookback_date}" AND "{cur_holdings_date}"
     ),
     subset_prices AS (
-        SELECT as_of_date, ticker, AVG(price) price
+        SELECT as_of_date, ticker, sector, AVG(price) price
         FROM raw_holdings
         WHERE
             fund_ticker = "{UNIVERSE_FUND}" AND
             sector NOT IN ('Cash and/or Derivatives')
-        GROUP BY as_of_date, ticker
+        GROUP BY as_of_date, ticker, sector
     ),
     grouped_holdings AS (
         SELECT fund_ticker, as_of_date, ticker, IFNULL(SUM(amount), 0) amount
@@ -75,24 +103,80 @@ def generate_flow_query(cur_holdings_date, lookback_date, buffer_lookback_date) 
         FROM grouped_holdings
         WINDOW flow_window AS (PARTITION BY fund_ticker, ticker order by as_of_date)
     )
-    SELECT flows.as_of_date, flows.ticker, SUM(amount_diff * price) flow
+    SELECT flows.ticker, sector, SUM(amount_diff * price) flow
     FROM flows LEFT JOIN subset_prices
     ON
     flows.as_of_date = subset_prices.as_of_date AND
     flows.ticker = subset_prices.ticker 
     WHERE flows.as_of_date BETWEEN "{lookback_date}" AND "{cur_holdings_date}"
-    GROUP BY flows.ticker
-    HAVING flow != 0 and FLOW IS NOT NULL
-    ORDER BY flow, flows.as_of_date, flows.ticker
+    GROUP BY flows.ticker, sector
+    ORDER BY flow, flows.ticker
     """
 
 
+def fmt_curr(x: float) -> str:
+    """Format the input as a thousands-separated int in millions"""
+    try:
+        return f"{x//1e6:,.0f}"
+    except:
+        return ""
+
+
+def fmt_data(flows: pd.Series):
+    col = flows.index.name.title()
+    flows_ = flows.rename("Flow ($MM)").rename_axis(col)
+    flows_styled = (
+        flows_.to_frame()
+        .style.set_table_styles(TBL_STYLES)
+        .set_table_attributes(TBL_ATTRS)
+        .format(fmt_curr)
+        .bar(color=BAR_COLORS, props=BAR_PROPS)
+    )
+    return flows_styled
+
+
+def top_tail_df(df, n: int):
+    """Return top + bottom n rows of the given df"""
+    if len(df) <= 2 * n:
+        return df
+    return pd.concat([df.head(n), df.tail(n)])
+
+
 def main():
-    # TODO: check sqlalchemy 2.* works
+    """Calculate flows and saves as nicely formatted json in GCS
+    #FIXME: refactor
+    """
+    bucket, blob = parse_uri(SAVE_URI)
+
     cur_holdings_date, lookback_date, buffer_lookback_date = get_query_dates()
     flow_query = generate_flow_query(
         cur_holdings_date, lookback_date, buffer_lookback_date
     )
 
     df = pd.read_gbq(flow_query)
-    # TODO: format results
+    df_ = df.dropna()
+    grp_dfs = {
+        k: df_.groupby(k)["flow"].sum().sort_values(ascending=False)
+        for k in ["sector", "ticker"]
+    }
+    grp_dfs["total"] = pd.Series(
+        grp_dfs["ticker"].sum(), index=pd.Index([""], name="Total")
+    )
+    subset_ticker_df = top_tail_df(grp_dfs["ticker"], NUM_TICKER_SUBSET)
+    styled_data = {k: fmt_data(v) for k, v in grp_dfs.items()}
+    styled_data = {
+        "total": fmt_data(grp_dfs["total"]),
+        "ticker": fmt_data(subset_ticker_df),
+        "sector": fmt_data(grp_dfs["sector"]),
+    }
+
+    styled_data_html = {
+        **{k: styler.to_html() for k, styler in styled_data.items()},
+        "as_of_date": str(cur_holdings_date),
+    }
+    styled_data_html_ = json.dumps(styled_data_html)
+    gcs_write(bucket, blob, styled_data_html_)
+
+
+if __name__ == "__main__":
+    main()
