@@ -10,9 +10,10 @@ import pandas as pd
 from google.cloud import storage
 
 PROJECT_ID = os.getenv("PROJECT_ID")
+SAVE_URI = os.getenv("SAVE_URI")  # expects gs://path/to/file.json
+
 DATASET_NAME = "etf_holdings"
 HOLDINGS_TABLE_NAME = "etf_holdings"
-SAVE_URI = os.getenv("SAVE_URI")  # expects gs://path/to/file.json
 
 FLOW_DELAY = 2  # cutoff calculations to 2 business days ago
 LOOKBACK_WINDOW = int(os.getenv("LOOKBACK_WINDOW", 21))
@@ -146,15 +147,19 @@ def main():
     """Calculate flows and saves as nicely formatted json in GCS
     #FIXME: refactor
     """
+    logger.info(
+        f"Attempting to calculate flows and save formatted output to {SAVE_URI}"
+    )
     bucket, blob = parse_uri(SAVE_URI)
 
     cur_holdings_date, lookback_date, buffer_lookback_date = get_query_dates()
     flow_query = generate_flow_query(
         cur_holdings_date, lookback_date, buffer_lookback_date
     )
-
+    logger.info(f"Querying flows from {lookback_date} to {cur_holdings_date}")
     df = pd.read_gbq(flow_query)
     df_ = df.dropna()
+    logger.info("Calculating aggregated flows")
     grp_dfs = {
         k: df_.groupby(k)["flow"].sum().sort_values(ascending=False)
         for k in ["sector", "ticker"]
@@ -162,6 +167,7 @@ def main():
     grp_dfs["total"] = pd.Series(
         grp_dfs["ticker"].sum(), index=pd.Index([""], name="Total")
     )
+    logger.info("Formatting data")
     subset_ticker_df = top_tail_df(grp_dfs["ticker"], NUM_TICKER_SUBSET)
     styled_data = {k: fmt_data(v) for k, v in grp_dfs.items()}
     styled_data = {
@@ -175,7 +181,9 @@ def main():
         "as_of_date": str(cur_holdings_date),
     }
     styled_data_html_ = json.dumps(styled_data_html)
+    logger.info(f"Attempting to save to bucket {bucket}, blob {blob}")
     gcs_write(bucket, blob, styled_data_html_)
+    logger.info("Done!")
 
 
 if __name__ == "__main__":
