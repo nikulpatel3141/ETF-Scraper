@@ -1,5 +1,10 @@
 #!/usr/bin/env bash
 
+cd "$(dirname "$0")"
+
+git config --global user.email "gcp@gcp.gcp"
+git config --global user.name "GCP"
+
 TMP_OUT_DIR='/tmp/etf_scraper_output'
 
 mkdir ${TMP_OUT_DIR}
