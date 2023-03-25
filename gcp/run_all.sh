@@ -14,6 +14,7 @@ python3 calculate_flows.py # outputs to SAVE_DIR
 python3 setup_gh.py
 
 cd TMP_OUT_DIR
+
 git init
 git remote set origin ${GH_OUT_REPO_URL}
 git add .
