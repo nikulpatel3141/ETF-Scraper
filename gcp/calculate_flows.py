@@ -20,6 +20,10 @@ FLOW_DELAY = 2  # cutoff calculations to 2 business days ago
 LOOKBACK_WINDOW = int(os.getenv("LOOKBACK_WINDOW", 21))
 UNIVERSE_FUND = "IVV"
 
+# for filtering obviously wrong flows
+OUTLIER_QUANTILE = int(os.getenv("OUTLIER_QUANTILE", 0.9))
+OUTLIER_MULT = int(os.getenv("OUTLIER_MULT", 50))
+
 HOLDINGS_TABLE = f"`{PROJECT_ID}.{DATASET_NAME}.{HOLDINGS_TABLE_NAME}`"
 _FMT_TICKER = """REPLACE(REPLACE(ticker, " ", ""), ".", "")"""
 
@@ -160,6 +164,13 @@ def main():
     logger.info(f"Querying flows from {lookback_date} to {cur_holdings_date}")
     df = pd.read_gbq(flow_query)
     df_ = df.dropna()
+
+    abs_flow_limit = df_["flow"].abs().quantile(OUTLIER_QUANTILE) * OUTLIER_MULT
+    df_ = df_[df_["flow"].abs() < abs_flow_limit]
+
+    if len(df_) < len(df):
+        logger.warning(f"Dropped {len(df_)-len(df)} invalid flows")
+
     logger.info("Calculating aggregated flows")
     grp_dfs = {
         k: df_.groupby(k)["flow"].sum().sort_values(ascending=False)
