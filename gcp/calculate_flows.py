@@ -21,7 +21,7 @@ LOOKBACK_WINDOW = int(os.getenv("LOOKBACK_WINDOW", 21))
 UNIVERSE_FUND = "IVV"
 
 # for filtering obviously wrong flows
-OUTLIER_QUANTILE = int(os.getenv("OUTLIER_QUANTILE", 0.9))
+OUTLIER_QUANTILE = float(os.getenv("OUTLIER_QUANTILE", 0.9))
 OUTLIER_MULT = int(os.getenv("OUTLIER_MULT", 50))
 
 HOLDINGS_TABLE = f"`{PROJECT_ID}.{DATASET_NAME}.{HOLDINGS_TABLE_NAME}`"
