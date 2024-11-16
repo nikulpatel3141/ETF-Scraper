@@ -68,7 +68,7 @@ class ISharesListings(ProviderListings):
         "Market Value": "market_value",
         "Weight (%)": "weight",
         "Notional Value": "notional_value",
-        "Shares": "amount",
+        "Quantity": "amount",
         "Price": "price",
         "Location": "location",
         "Exchange": "exchange",
@@ -115,7 +115,7 @@ class ISharesListings(ProviderListings):
     @classmethod
     def exp_holding_cols(cls, asset_class: str) -> List[str]:
         if asset_class in ("Equity", "Real Estate", "Commodity"):
-            return ["Ticker", "Shares", "Market Value"]
+            return ["Ticker", "Quantity", "Market Value"]
         elif asset_class == "Fixed Income":
             return ["CUSIP", "Market Value"]
         else:
