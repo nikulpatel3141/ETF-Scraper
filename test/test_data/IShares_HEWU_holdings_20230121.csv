@@ -7,7 +7,7 @@ Bond,"-"
 Cash,"-"
 Other,"-"
  
-Ticker,Name,Sector,Asset Class,Market Value,Weight (%),Notional Value,Shares,Price,Location,Exchange,Currency,FX Rate,Market Currency,Accrual Date
+Ticker,Name,Sector,Asset Class,Market Value,Weight (%),Notional Value,Quantity,Price,Location,Exchange,Currency,FX Rate,Market Currency,Accrual Date
 "EWU","ISHARES MSCI UNITED KINGDOM ETF","Financials","Equity","14,590,812.60","102.60","14,590,812.60","445,385.00","32.76","United States","NYSE Arca","USD","1.00","USD","-"
 "GBP","GBP/USD","Cash and/or Derivatives","Forwards","8,548.20","0.06","8,548.20","257,000.00","1.00","United States","-","USD","0.81","USD","-"
 "USD","USD CASH","Cash and/or Derivatives","Cash","8,205.35","0.06","8,205.35","8,205.00","100.00","United States","-","USD","1.00","USD","-"
@@ -24,7 +24,7 @@ Bond,"-"
 Cash,"-"
 Other,"-"
  
-Ticker,Name,Sector,Asset Class,Market Value,Weight (%),Notional Value,Shares,Price,Location,Exchange,Currency,FX Rate,Market Currency,Accrual Date
+Ticker,Name,Sector,Asset Class,Market Value,Weight (%),Notional Value,Quantity,Price,Location,Exchange,Currency,FX Rate,Market Currency,Accrual Date
 "EWU","ISHARES MSCI UNITED KINGDOM ETF","Financials","Equity","14,590,812.60","102.60","14,590,812.60","445,385.00","32.76","United States","NYSE Arca","USD","1.00","USD","-"
 "GBP","GBP/USD","Cash and/or Derivatives","Forwards","8,548.20","0.06","8,548.20","8,548.00","1.00","United States","-","USD","1.00","USD","-"
 "USD","USD CASH","Cash and/or Derivatives","Cash","8,205.35","0.06","8,205.35","82.00","100.00","United States","-","USD","1.00","USD","-"

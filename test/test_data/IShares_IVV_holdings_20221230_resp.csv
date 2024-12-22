@@ -7,7 +7,7 @@ Bond,"-"
 Cash,"-"
 Other,"-"
  
-Ticker,Name,Sector,Asset Class,Market Value,Weight (%),Notional Value,Shares,Price,Location,Exchange,Currency,FX Rate,Market Currency,Accrual Date
+Ticker,Name,Sector,Asset Class,Market Value,Weight (%),Notional Value,Quantity,Price,Location,Exchange,Currency,FX Rate,Market Currency,Accrual Date
 "AAPL","APPLE INC","Information Technology","Equity","17,447,821,037.88","6.03","17,447,821,037.88","134,286,316.00","129.93","United States","NASDAQ","USD","1.00","USD","-"
 "MSFT","MICROSOFT CORP","Information Technology","Equity","16,053,746,732.94","5.55","16,053,746,732.94","66,940,817.00","239.82","United States","NASDAQ","USD","1.00","USD","-"
 "AMZN","AMAZON COM INC","Consumer Discretionary","Equity","6,694,853,340.00","2.31","6,694,853,340.00","79,700,635.00","84.00","United States","NASDAQ","USD","1.00","USD","-"
