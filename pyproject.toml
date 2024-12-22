@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "etf_scraper"
-dynamic = ["version"]
+version = "0.1.2"
 description = "Scrape ETF and Mutual Fund holdings from major providers"
 readme = "README.md"
 requires-python = ">=3.8"
