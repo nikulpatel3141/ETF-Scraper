@@ -16,7 +16,7 @@ dependencies = [
     "requests",
     "tenacity",
     "pandas>=1.5",
-    "numpy",
+    "numpy<2.0",
     "pandas_market_calendars",
     "openpyxl",
 ]
